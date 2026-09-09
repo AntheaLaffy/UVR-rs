@@ -41,6 +41,8 @@ cargo check --workspace --all-targets --locked
 
 - [任务](docs/tasks.md)：范围、阶段与验收条件。
 - [先验知识](docs/prior-knowledge.md)：客户反馈、假设与尚未决定的问题。
+- [推理先验方案](docs/inference-priors.md)：算法清单、网络架构、技术栈候选与验证顺序。
+- [框架与专用实现先验](docs/backend-priors.md)：Burn、Candle、ONNX 路线与局部手写算子的比较。
 - [后验知识](docs/posterior-knowledge.md)：源码证据与实际验证结果。
 - [性能](docs/performance.md)：基准设计、指标与记录规范。
 - [开发约定](CONTRIBUTING.md)：检查命令与知识更新方式。
