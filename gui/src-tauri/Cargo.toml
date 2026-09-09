@@ -1,0 +1,15 @@
+[package]
+name = "uvr-gui"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+uvr-core.workspace = true
+
+[lints]
+workspace = true

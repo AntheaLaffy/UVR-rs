@@ -1,0 +1,13 @@
+/target/
+node_modules/
+/gui/dist/
+/gui/src-tauri/gen/
+/.local/
+/models/
+/outputs/
+/benchmarks/artifacts/
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
