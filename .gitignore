@@ -5,9 +5,12 @@ node_modules/
 /.local/
 /models/
 /outputs/
+/test.mp3
 /benchmarks/artifacts/
+/benchmarks/backend-probe/target/
 .env
 .env.*
 !.env.example
 __pycache__/
 *.pyc
+.venv/

@@ -1,0 +1,31 @@
+{
+  "repository": "https://github.com/nomadkaraoke/python-audio-separator",
+  "commit": "bf1164aa0f1ee1d1d0ef0f09b315f7659fc06bab",
+  "files": [
+    {
+      "local": ".local/roformer-reference/bs_roformer.py",
+      "sha256": "1ae20f0f78502da190f643224658bcb665bfe2cc068c530d8c96db9ac506cf97",
+      "url": "https://raw.githubusercontent.com/nomadkaraoke/python-audio-separator/bf1164aa0f1ee1d1d0ef0f09b315f7659fc06bab/audio_separator/separator/uvr_lib_v5/roformer/bs_roformer.py"
+    },
+    {
+      "local": ".local/roformer-reference/attend.py",
+      "sha256": "5391ff83bb40a6ae82ba8c7bc742b0ce66f2024fa109ea64bb93f7fa1af17be6",
+      "url": "https://raw.githubusercontent.com/nomadkaraoke/python-audio-separator/bf1164aa0f1ee1d1d0ef0f09b315f7659fc06bab/audio_separator/separator/uvr_lib_v5/roformer/attend.py"
+    },
+    {
+      "local": ".local/roformer-reference/rotary.py",
+      "sha256": "a227b8626d70f7cb38726036bcd2b0e9838aff2e17d7d05d085d042ea3046c6f",
+      "url": "https://raw.githubusercontent.com/nomadkaraoke/python-audio-separator/bf1164aa0f1ee1d1d0ef0f09b315f7659fc06bab/audio_separator/separator/uvr_lib_v5/roformer/rotary.py"
+    },
+    {
+      "local": ".local/roformer-reference/mdxc_separator.py",
+      "sha256": "b9e36ad700d30550286523a3af9d4468780aef9de562fda8252670f69169b3bc",
+      "url": "https://raw.githubusercontent.com/nomadkaraoke/python-audio-separator/bf1164aa0f1ee1d1d0ef0f09b315f7659fc06bab/audio_separator/separator/architectures/mdxc_separator.py"
+    },
+    {
+      "local": ".local/roformer-reference/device_utils.py",
+      "sha256": "996142b91081f282833a134e27939f70d095396328d067ae00a9526b9b6be38a",
+      "url": "https://raw.githubusercontent.com/nomadkaraoke/python-audio-separator/bf1164aa0f1ee1d1d0ef0f09b315f7659fc06bab/audio_separator/separator/uvr_lib_v5/device_utils.py"
+    }
+  ]
+}

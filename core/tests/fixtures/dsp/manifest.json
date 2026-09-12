@@ -1,0 +1,78 @@
+{
+  "torch": "2.13.0+cpu",
+  "numpy": "2.2.6",
+  "cases": [
+    {
+      "file": "00-silence-320-constant.f32",
+      "sha256": "862566a7e631a01a0f2e3d79a14414d9ce10d457913a9794976cc397f931c9b7",
+      "n_fft": 320,
+      "hop": 80,
+      "padding": "constant",
+      "samples": 667,
+      "frames": 9
+    },
+    {
+      "file": "01-impulse-640-constant.f32",
+      "sha256": "c5ef8dea4d7964281a9aed9afbcd12f321c3129740a3262df331149e066f19e6",
+      "n_fft": 640,
+      "hop": 108,
+      "padding": "constant",
+      "samples": 1379,
+      "frames": 13
+    },
+    {
+      "file": "02-signal-768-constant.f32",
+      "sha256": "1b7708ea7161fbb47fe60767bfa7e8eebd5867296848c511d29650944ff67a1a",
+      "n_fft": 768,
+      "hop": 216,
+      "padding": "constant",
+      "samples": 1611,
+      "frames": 8
+    },
+    {
+      "file": "03-signal-960-constant.f32",
+      "sha256": "e4a94b315b351a06da66fe9fbf1cc310f52e1650a6ed1608bd94c2c432ed6abc",
+      "n_fft": 960,
+      "hop": 480,
+      "padding": "constant",
+      "samples": 2041,
+      "frames": 5
+    },
+    {
+      "file": "04-signal-1024-reflect.f32",
+      "sha256": "d19fc3a0552280e788339877b5c85c647fef32ccbea51c9446420a9cf3104911",
+      "n_fft": 1024,
+      "hop": 256,
+      "padding": "reflect",
+      "samples": 2305,
+      "frames": 10
+    },
+    {
+      "file": "05-signal-2048-reflect.f32",
+      "sha256": "35346a00640989cdaeac42e84da2f0fe4e86ffd7bca7887da098700306a09c6b",
+      "n_fft": 2048,
+      "hop": 441,
+      "padding": "reflect",
+      "samples": 4853,
+      "frames": 12
+    },
+    {
+      "file": "06-short-640-constant.f32",
+      "sha256": "4dc3a110ae06284c2205fff4590dfd4b61f9f32a887a1b598367d2d358761f59",
+      "n_fft": 640,
+      "hop": 108,
+      "padding": "constant",
+      "samples": 7,
+      "frames": 1
+    },
+    {
+      "file": "07-signal-2-reflect.f32",
+      "sha256": "7f5529b89be20a806d8a515a4bd1b9841e4a31aa7264d53c4d29797e9b140dc3",
+      "n_fft": 2,
+      "hop": 1,
+      "padding": "reflect",
+      "samples": 17,
+      "frames": 18
+    }
+  ]
+}

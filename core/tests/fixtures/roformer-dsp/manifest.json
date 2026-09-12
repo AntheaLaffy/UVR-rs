@@ -1,0 +1,87 @@
+{
+  "torch": "2.13.0+cpu",
+  "sources": [
+    {
+      "file": "tools/reference/generate_roformer_dsp.py",
+      "sha256": "daeeea8b0cba6e4c270c11f84acf6f97f1d1a6a889e6707edd5b4ed946b3646a",
+      "precision": "float64 periodic Hann, multiply, reflect STFT; cast to complex64",
+      "uv_lock_sha256": "ab9f59b5bd7ffa40dc8983c4b924aa28c2138d84c185d641c626562113e40266"
+    }
+  ],
+  "tensors": {
+    "stft-1025-input": {
+      "file": "stft-1025-input.f32",
+      "shape": [
+        2,
+        1025
+      ],
+      "sha256": "d24d9ff1d8aa718bf24a4715152fc12c0fd373a0436fbcf951a03d462584e318"
+    },
+    "stft-1025-expected": {
+      "file": "stft-1025-expected.f32",
+      "shape": [
+        2,
+        1025,
+        3,
+        2
+      ],
+      "sha256": "cb6f0527c0ba83f8d4006c04ff318b05443bc1fd737b5e7d723d7aa66531aad0"
+    },
+    "stft-4097-input": {
+      "file": "stft-4097-input.f32",
+      "shape": [
+        2,
+        4097
+      ],
+      "sha256": "26502f1b962c4738e74a61bee27a827501ddfab43b9cb99f33dd06231fb35faf"
+    },
+    "stft-4097-expected": {
+      "file": "stft-4097-expected.f32",
+      "shape": [
+        2,
+        1025,
+        10,
+        2
+      ],
+      "sha256": "5593b9ef9a311e7bd2207af53531ef7ec1c2f47416c333c7fa06d326f5a7b7cd"
+    },
+    "stft-8193-input": {
+      "file": "stft-8193-input.f32",
+      "shape": [
+        2,
+        8193
+      ],
+      "sha256": "b35e27fb344aa7b0b8520681fde91de920fb3b428200bf9c53385917e9a18be3"
+    },
+    "stft-8193-expected": {
+      "file": "stft-8193-expected.f32",
+      "shape": [
+        2,
+        1025,
+        19,
+        2
+      ],
+      "sha256": "a3f2eee391ffb525a7b008fb03075d68dd4d84e126c0a2fd91ee5c4a8c79c6ca"
+    }
+  },
+  "cases": [
+    {
+      "name": "stft-1025",
+      "input": "stft-1025-input",
+      "expected": "stft-1025-expected",
+      "steps": []
+    },
+    {
+      "name": "stft-4097",
+      "input": "stft-4097-input",
+      "expected": "stft-4097-expected",
+      "steps": []
+    },
+    {
+      "name": "stft-8193",
+      "input": "stft-8193-input",
+      "expected": "stft-8193-expected",
+      "steps": []
+    }
+  ]
+}

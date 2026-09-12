@@ -1,13 +1,18 @@
 # 开发约定
 
-先阅读 [任务](docs/tasks.md) 与 [先验知识](docs/prior-knowledge.md)，再按证据更新 [后验知识](docs/posterior-knowledge.md)。推理后端未决定，初始化阶段不引入推理框架或假实现 API。
+先阅读 [任务](docs/tasks.md)、[工程基线](docs/baseline.md) 与 [先验知识](docs/prior-knowledge.md)，再按证据更新 [后验知识](docs/posterior-knowledge.md)。core 的可选 `burn-cpu` 提供 VR 网络与 PCM 任务，`audio-io` 提供文件编解码，CLI 默认启用两者。未实现能力不能作为可用 API 或界面功能展示。
 
 `core/` 持有音频处理和推理逻辑；CLI 与 Tauri 宿主调用库，前端只负责交互。需要共享的参数与任务协议在出现真实实现需求后定义。
+
+运行时不得依赖 Python。`tools/reference/` 的 Python／PyTorch 仅用于独立验证；应用构建、启动和音频处理不能调用该环境。参考工具依赖由自己的 `uv.lock` 固定，普通 Cargo 测试使用已保存的样本，不要求 Python。重新生成参考样本的方法见 [验证工具说明](tools/reference/README.md)。
 
 ## 本地检查
 
 ```sh
 cargo fmt --all -- --check
+cargo test --locked -p uvr-core -p uvr-cli
+cargo test --locked -p uvr-core -p uvr-cli --features uvr-core/burn-cpu
+cargo clippy --locked -p uvr-core --all-targets --features burn-cpu -- -D warnings
 pnpm build
 cargo check --workspace --all-targets --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
@@ -16,11 +21,20 @@ cargo run --locked -p uvr-cli -- --version
 git diff --check
 ```
 
-新 clone 先运行 `pnpm install --frozen-lockfile`。核心开发可以只检查 `cargo check --locked`；完整桌面检查需要安装系统依赖。当前没有推理测试，不为占位模块编写空测试；进入实现阶段后用参考中间张量、音频回归和失败场景验证行为。
+新 clone 先运行 `pnpm install --frozen-lockfile`。核心开发可以只检查 `cargo check --locked`；完整桌面检查需要安装系统依赖。普通 Cargo 测试覆盖文件摘要、UVR 标识、DSP／编解码对照、取消／输出保护与 CLI 失败场景。依赖大型权重的完整网络及音频验证另见 [探针说明](benchmarks/backend-probe/README.md)，不把缺少本地权重时的普通测试通过当作模型已验收。
 
 Cargo.lock 与 pnpm-lock.yaml 随应用提交。权重、客户音频、生成分轨和大型基准产物放在被忽略的目录；可共享的基准清单与结果摘要需记录输入校验和。
 
-GUI 占位图标的源文件是 `gui/src-tauri/icons/source.svg`，修改后运行 `pnpm --filter @uvr/gui tauri icon src-tauri/icons/source.svg --output src-tauri/icons --png 32` 再提交生成的 PNG。
+桌面图标、界面 Logo 与 favicon 共用 `gui/src-tauri/icons/atri-v1/source.png`，避免更新后出现不同标志。图案按用户提供的 ATRI 图片设计，由内置 image_gen 生成；参考说明与完整提示词保存在同目录的 `generation.json`。源图是带不透明深紫背景的 PNG 位图。
+
+更新源图后，用 Tauri CLI 重新导出并同步前端资源。临时目录用于接收全平台产物，仓库只保留当前桌面应用需要的文件：
+
+```sh
+pnpm --filter @uvr/gui tauri icon src-tauri/icons/atri-v1/source.png --output /tmp/uvr-atri-icons
+cp /tmp/uvr-atri-icons/{32x32.png,64x64.png,128x128.png,128x128@2x.png,icon.png,icon.ico,icon.icns} gui/src-tauri/icons/atri-v1/
+cp /tmp/uvr-atri-icons/128x128.png gui/public/branding/uvr-atri.png
+cp /tmp/uvr-atri-icons/32x32.png gui/public/branding/uvr-atri-32.png
+```
 
 ## 知识记录
 

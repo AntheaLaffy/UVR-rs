@@ -1,0 +1,97 @@
+{
+  "soundfile": "0.14.0",
+  "libsndfile": "1.2.2",
+  "numpy": "2.2.6",
+  "generator_sha256": "71cb3d67f47f9135609c827e38a2e64ee95b26648f4bf7b9985fa093812e2d1a",
+  "uv_lock_sha256": "ab9f59b5bd7ffa40dc8983c4b924aa28c2138d84c185d641c626562113e40266",
+  "cases": [
+    {
+      "file": "mono-u8.wav",
+      "sha256": "53317aa7612983c49e111560c565aee4bcff14168d03a777c2480a670a3184ba",
+      "reference": "mono-u8.wav.f32",
+      "reference_sha256": "90e6e1a871b48f93d6ef45677a6302387034cd972d7d0a20a1c7586d56349904",
+      "sample_rate": 11025,
+      "channels": 1,
+      "samples_per_channel": 513,
+      "absolute_tolerance": 1e-07,
+      "relative_tolerance": 1e-07
+    },
+    {
+      "file": "stereo-i16.wav",
+      "sha256": "424552d139571634a8022a92b0bfb7a0e798264bafa9a51eb07bbb2ecad9d8b0",
+      "reference": "stereo-i16.wav.f32",
+      "reference_sha256": "bccb83869190fca6d84491ba4b449bd8183a519afffe3845551d74b995de7d7a",
+      "sample_rate": 44100,
+      "channels": 2,
+      "samples_per_channel": 1025,
+      "absolute_tolerance": 1e-07,
+      "relative_tolerance": 1e-07
+    },
+    {
+      "file": "stereo-i24.wav",
+      "sha256": "88e3197612c0b4d793d507d4c7a6b42e4b7a11cc70f853e69c2e5c996dca571d",
+      "reference": "stereo-i24.wav.f32",
+      "reference_sha256": "4855b17063fb9830c4ae6092dcba889997970267ac79ca1ffb2f6e0f1f79910a",
+      "sample_rate": 48000,
+      "channels": 2,
+      "samples_per_channel": 2049,
+      "absolute_tolerance": 1e-07,
+      "relative_tolerance": 1e-07
+    },
+    {
+      "file": "mono-i32.wav",
+      "sha256": "ed685ee2822e44ce53f62067bc20eb707c8823e98f000042bf1f73510403549c",
+      "reference": "mono-i32.wav.f32",
+      "reference_sha256": "e0fd5dfef222b04b579a76fd826ed0ec5ba05e9558ef933f30380e6d3e0cb5e5",
+      "sample_rate": 32000,
+      "channels": 1,
+      "samples_per_channel": 1113,
+      "absolute_tolerance": 1e-07,
+      "relative_tolerance": 1e-07
+    },
+    {
+      "file": "stereo-float.wav",
+      "sha256": "e7a5383536abf8008b086cd66f70c0a69ad3c8b4cddeea3a197345f11955f6a2",
+      "reference": "stereo-float.wav.f32",
+      "reference_sha256": "cac3857375a7f6189805f0d83bbb2831653aa0e178809f3890b5ab8174135d63",
+      "sample_rate": 44100,
+      "channels": 2,
+      "samples_per_channel": 1337,
+      "absolute_tolerance": 1e-07,
+      "relative_tolerance": 1e-07
+    },
+    {
+      "file": "stereo.flac",
+      "sha256": "e7d24ff450560eb5fbc559194061bc478bc80ba0716175e6094ef9944a3879fd",
+      "reference": "stereo.flac.f32",
+      "reference_sha256": "1354821e05fb455929dd3a1b54f907c5216dcddc3a3d159c2c2ea79c3292c48e",
+      "sample_rate": 48000,
+      "channels": 2,
+      "samples_per_channel": 2113,
+      "absolute_tolerance": 1e-07,
+      "relative_tolerance": 1e-07
+    },
+    {
+      "file": "mono.mp3",
+      "sha256": "4ca6aa4d386a0b98c62a2a66625a99fe6a6ba12ae9df2a4ffb7d031f31b89d4c",
+      "reference": "mono.mp3.f32",
+      "reference_sha256": "80599f2aa793093e20b0cce5e21af8147dc63a1df00341baa040296e0814f75c",
+      "sample_rate": 44100,
+      "channels": 1,
+      "samples_per_channel": 5007,
+      "absolute_tolerance": 2e-06,
+      "relative_tolerance": 2e-05
+    },
+    {
+      "file": "stereo.mp3",
+      "sha256": "3b21441177e61bcdcb12b45e57073ad2c4b484a43907a44a2c441d6abd493625",
+      "reference": "stereo.mp3.f32",
+      "reference_sha256": "9c32d5f35a268b46e4a36dd9ddeb93096205f6445e26e86215f1927be164aa64",
+      "sample_rate": 48000,
+      "channels": 2,
+      "samples_per_channel": 7173,
+      "absolute_tolerance": 2e-06,
+      "relative_tolerance": 2e-05
+    }
+  ]
+}

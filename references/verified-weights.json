@@ -1,0 +1,121 @@
+{
+  "verified_on": "2026-09-10",
+  "upstream_commit": "5517e0cf0d1acd16a1618eeedec596957523f9e1",
+  "application_data_commit": "3826b05b570dbd4fbedbc807758803b35348ba1b",
+  "verification": "Local SHA-256 and UVR ID, metadata lookup, strict tensor load, synthetic forward; no audio-quality or redistribution approval",
+  "models": [
+    {
+      "file": "5_HP-Karaoke-UVR.pth",
+      "size_bytes": 126782699,
+      "sha256": "fe00891defbb61f4261500af22f7624f1a3df8dc75fa3998d1aece02e6be4537",
+      "uvr_md5": "f6ea8473ff86017b5ebd586ccacf156b",
+      "config": "upstream/lib_v5/vr_network/modelparams/4band_v2_sn.json",
+      "config_sha256": "179b43fd633c5081ef6f7878051d6aaf5781e5a7d0dab93a17bff501ce53e3fb",
+      "metadata": {
+        "vr_model_param": "4band_v2_sn",
+        "primary_stem": "Instrumental",
+        "is_karaoke": true
+      },
+      "network": "CascadedASPPNet",
+      "offset": 128,
+      "tensor_count": 459,
+      "forward": {
+        "input_shape": [
+          1,
+          2,
+          673,
+          320
+        ],
+        "mask_shape": [
+          1,
+          2,
+          673,
+          64
+        ]
+      }
+    },
+    {
+      "file": "6_HP-Karaoke-UVR.pth",
+      "size_bytes": 126782699,
+      "sha256": "4ce7eaaa9e56f09366b788aebf6d3a72aec8145692c56f1e090e4e7e2d7ce65f",
+      "uvr_md5": "6b5916069a49be3fe29d4397ecfd73fa",
+      "config": "upstream/lib_v5/vr_network/modelparams/3band_44100_msb2.json",
+      "config_sha256": "938e29b60ba6ac15dc96774998a7c0bf9e55dfe737f239e36d1a04c8ba808e29",
+      "metadata": {
+        "vr_model_param": "3band_44100_msb2",
+        "primary_stem": "Instrumental",
+        "is_karaoke": true
+      },
+      "network": "CascadedASPPNet",
+      "offset": 128,
+      "tensor_count": 459,
+      "forward": {
+        "input_shape": [
+          1,
+          2,
+          641,
+          320
+        ],
+        "mask_shape": [
+          1,
+          2,
+          641,
+          64
+        ]
+      }
+    },
+    {
+      "file": "UVR-DeEcho-DeReverb.pth",
+      "size_bytes": 223650277,
+      "sha256": "e644028ec82865dc0fe082bc6fea85a43f7c71cfe375caee2da2d154aa661ee7",
+      "uvr_md5": "0fb9249ffe4ffc38d7b16243f394c0ff",
+      "config": "upstream/lib_v5/vr_network/modelparams/4band_v3.json",
+      "config_sha256": "c0104bb7aab6a48b418b9a1e45c8970003d3a2459b2538c5f360a154e1c20484",
+      "metadata": {
+        "vr_model_param": "4band_v3",
+        "primary_stem": "No Reverb"
+      },
+      "network": "CascadedNet",
+      "offset": 64,
+      "tensor_count": 689,
+      "forward": {
+        "input_shape": [
+          1,
+          2,
+          673,
+          320
+        ],
+        "mask_shape": [
+          1,
+          2,
+          673,
+          192
+        ]
+      }
+    },
+    {
+      "file": "model_bs_roformer_ep_368_sdr_12.9628.ckpt",
+      "size_bytes": 639317465,
+      "sha256": "f6c94864adfb73bbb0ca58ec14d58dd0b364549e9fb61433ae51916f3e2f8d0b",
+      "config": ".local/reference-metadata/model_bs_roformer_ep_368_sdr_12.9628.yaml",
+      "config_sha256": "aea599b3f9bd4892a9c6bf5ac7c44787d3c99f717903d16054702665d477c86b",
+      "source_commit": "bf1164aa0f1ee1d1d0ef0f09b315f7659fc06bab",
+      "network": "BSRoformer",
+      "tensor_count": 699,
+      "forward": {
+        "input_shape": [
+          1,
+          2,
+          4096
+        ],
+        "output_shape": [
+          1,
+          2,
+          3969
+        ],
+        "peak": 0.00003257051866967231,
+        "flash_attn": true
+      }
+    }
+  ]
+}

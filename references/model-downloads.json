@@ -1,0 +1,16 @@
+{
+  "verified_on": "2026-09-11",
+  "hugging_face": {
+    "repository": "Blane187/all_public_uvr_models",
+    "revision": "fddec39677560e41e3194f24a9e4c4cd32ef0e83",
+    "metadata_url": "https://huggingface.co/api/models/Blane187/all_public_uvr_models/revision/fddec39677560e41e3194f24a9e4c4cd32ef0e83?blobs=true",
+    "resolve_prefix": "https://huggingface.co/Blane187/all_public_uvr_models/resolve/fddec39677560e41e3194f24a9e4c4cd32ef0e83/",
+    "verification": "All four LFS SHA-256 identities and sizes equal verified-weights.json. This is a download mirror, not a claim about model authorship or redistribution rights."
+  },
+  "github": {
+    "release_prefix": "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/",
+    "asset_metadata": "targets.json"
+  },
+  "identities": "verified-weights.json",
+  "runtime_rule": "Only complete files matching the expected size and whole-file SHA-256 are available. Model bytes remain external to the application."
+}

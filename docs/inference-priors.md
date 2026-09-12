@@ -83,13 +83,15 @@ Candle 官方 [依赖与 feature 定义](https://raw.githubusercontent.com/huggi
 
 本轮修订：此前“Candle 优先、Burn 后备”的排序依据不足。两者并列比较，ONNX Runtime 与 ONNX Rust 路线也进入讨论；原生运行时的产品采用仍取决于纯 Rust 边界。具体比较及专用实现的采用条件见 [框架与专用实现先验](backend-priors.md)。不预设任一框架必然更快。
 
-“纯 Rust”若按严格运行时定义，则不采用 LibTorch／ONNX Runtime 的原生推理核心；如果约束仅为 Rust 应用且运行时无 Python，则 ONNX Runtime 可以成为产品候选。ONNX 格式本身不决定实现语言。底层系统调用、计算库 FFI、未来 GPU 驱动及离线权重转换工具的允许边界仍需确认，不能因用户询问 ONNX 就视为已经放宽纯 Rust 偏好。
+2026-09-10 已确认运行时不依赖 Python，独立验证可用 Python／PyTorch。推理实现仍优先纯 Rust；LibTorch／ONNX Runtime 等原生核心是否可作为产品依赖，仍取决于未确定的 FFI 边界。ONNX 格式本身不决定实现语言。底层系统调用、计算库与未来 GPU 驱动另行核对，不能把允许验证工具解释为选定产品后端。
 
 验证与修订条件：先用固定版本及真实模型形状跑算子对照和峰值内存实验，再决定是否采用该框架及权重方案。
 
+2026-09-12 进展：按后续性能目标，OpenVINO CPU 已作为可选实验特性接入 core／CLI，使用安全 Rust 绑定、原始 checkpoint 和 Rust 内存构图，运行时不依赖 Python。此入口用于检验实际任务收益；默认后端、原生库分发和平台支持范围仍以完整验证为准。GPU 运行时也已安装并开始实测，具体故障、队列对照和采用范围见 [完整后端实验](../benchmarks/2026-09-11-roformer-openvino.md)。
+
 ## H06：CPU 基线与组织方式
 
-当前验证范围按用户约束限定在 CPU。本机具体硬件继续只留在 Git 忽略的本地记录中；Windows 客户硬件未知。
+首个产品验收平台为 Linux CPU；后续性能实验同时评估本机可用 GPU，不以原两线程 CPU 对照限制最终配置。Windows 客户硬件与运行验证仍需单列。
 
 建议基线为 FP32、batch=1、一次加载并运行一个模型。保留完整模型权重和架构，不以量化、裁层或换小模型作为默认适配方法。线程数通过测量决定；控制外层任务与算子内部并行的叠加。
 
@@ -97,7 +99,7 @@ Candle 官方 [依赖与 feature 定义](https://raw.githubusercontent.com/huggi
 
 分块与缓冲复用必须尊重归一化和边界语义；首次用少量片段验证，稳定后扩大到整曲。不会据 FP32 或 Rust 本身承诺实时推理。
 
-验证与修订条件：记录分阶段耗时、峰值 RSS 和输出误差，按 [性能协议](performance.md) 决定线程数、缓存方式及后续优化。GPU 测试留待未来，不能代替 Windows 运行验证。
+验证与修订条件：记录分阶段耗时、峰值 RSS 和输出误差，按 [性能协议](performance.md) 决定线程数、缓存方式及后续优化。在实际内存可承受的范围内，允许更大 batch、工作缓冲与缓存换取速度。本机 GPU 实验不能代替 Windows 运行验证。
 
 ## H07：建议实施顺序
 

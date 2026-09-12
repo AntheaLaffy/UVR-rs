@@ -4,12 +4,18 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[features]
+openvino = ["uvr-core/openvino"]
+
 [[bin]]
 name = "uvr"
 path = "src/main.rs"
 
 [dependencies]
-uvr-core.workspace = true
+uvr-core = { workspace = true, features = ["audio-io", "burn-cpu"] }
+anyhow = "1.0"
+ctrlc = "=3.5.0"
+rayon = "1.11"
 
 [lints]
 workspace = true

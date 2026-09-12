@@ -1,0 +1,6 @@
+{
+  "identifier": "main-window",
+  "description": "Local main window events and application commands.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
