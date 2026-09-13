@@ -522,15 +522,20 @@ mod tests {
             replace_invalid: true,
             ..Default::default()
         };
-        let start = Instant::now();
+        // Start the cancellation clock only after connecting: under concurrent
+        // test load, client setup can exceed 150 ms and leave accept() waiting.
+        let mut receiving_since = None;
         let error = download_from(
             SAMPLE,
             directory.path(),
             &options,
             test_client,
             &url,
-            |_| {
-                if start.elapsed() >= Duration::from_millis(150) {
+            |progress| {
+                if progress.stage == DownloadStage::Receiving
+                    && receiving_since.get_or_insert_with(Instant::now).elapsed()
+                        >= Duration::from_millis(150)
+                {
                     ControlFlow::Break(())
                 } else {
                     ControlFlow::Continue(())
@@ -540,7 +545,7 @@ mod tests {
         .await
         .unwrap_err();
         assert!(error.is::<TaskCancelled>());
-        assert!(start.elapsed() < Duration::from_secs(2));
+        assert!(receiving_since.unwrap().elapsed() < Duration::from_secs(2));
         server.join().unwrap();
         assert_eq!(fs::read(&path).unwrap(), b"bad");
         assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
