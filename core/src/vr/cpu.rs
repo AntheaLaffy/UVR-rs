@@ -99,6 +99,7 @@ impl Winograd3x3 {
         }
     }
 
+    #[allow(clippy::needless_range_loop)] // Preserve the measured tile/scratch indexing layout.
     pub(super) fn forward(&self, x: T4) -> T4 {
         let [batch, channels, height, width] = x.dims();
         assert_eq!(channels, self.input_channels);
@@ -249,6 +250,7 @@ impl Winograd3x3 {
 /// is freshly zero-initialized and beta is ignored by that mode.
 #[inline]
 #[allow(unsafe_code)]
+#[allow(clippy::too_many_arguments)] // Explicit dimensions and strides bound the audited FFI call.
 fn gemm_f32_strided(
     destination: &mut [f32],
     lhs: &[f32],

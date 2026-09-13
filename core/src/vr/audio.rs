@@ -7,7 +7,7 @@ use super::{DeEchoModel, HpKaraokeModel, HpKaraokeVariant};
 pub use crate::task::TaskCancelled;
 use crate::vr_dsp::{self, VrVariant};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VrOptions {
     /// Multiple of 16, at most 2048, and larger than both context margins.
     pub window_frames: usize,
@@ -28,6 +28,35 @@ impl Default for VrOptions {
             inference_batch: 1,
             window_parallelism: 4,
         }
+    }
+}
+
+impl VrOptions {
+    /// Validate the active model's constraints and report the settings the
+    /// scheduler will use. DeEcho cannot batch or parallelize its LSTM windows.
+    pub fn effective_for(mut self, variant: VrVariant) -> Result<Self> {
+        ensure!(
+            self.window_frames > 2 * variant.offset()
+                && self.window_frames <= 2048
+                && self.window_frames.is_multiple_of(16),
+            "window must be a multiple of 16, greater than twice model context, and at most 2048"
+        );
+        if variant == VrVariant::DeEcho {
+            self.inference_batch = 1;
+            self.window_parallelism = 1;
+        }
+        ensure!(
+            (1..=4).contains(&self.inference_batch),
+            "inference batch must be between 1 and 4"
+        );
+        ensure!(
+            (1..=8).contains(&self.window_parallelism),
+            "window parallelism must be between 1 and 8"
+        );
+        if self.inference_batch > 1 {
+            self.window_parallelism = 1;
+        }
+        Ok(self)
     }
 }
 
@@ -130,28 +159,11 @@ fn separate_with(
     mut progress: impl FnMut(VrProgress) -> ControlFlow<()>,
     predict: impl Fn(&[f32], usize, usize) -> Result<Vec<f32>> + Sync,
 ) -> Result<VrOutput> {
+    let options = options.effective_for(variant)?;
     let window = options.window_frames;
     let offset = variant.offset();
-    ensure!(
-        window > 2 * offset && window <= 2048 && window.is_multiple_of(16),
-        "window must be a multiple of 16, greater than twice model context, and at most 2048"
-    );
-    let batch_size = match variant {
-        VrVariant::DeEcho => 1,
-        VrVariant::HpFive | VrVariant::HpSix => options.inference_batch,
-    };
-    ensure!(
-        (1..=4).contains(&batch_size),
-        "inference batch must be between 1 and 4"
-    );
-    let window_parallelism = match variant {
-        VrVariant::DeEcho => 1,
-        VrVariant::HpFive | VrVariant::HpSix => options.window_parallelism,
-    };
-    ensure!(
-        (1..=8).contains(&window_parallelism),
-        "window parallelism must be between 1 and 8"
-    );
+    let batch_size = options.inference_batch;
+    let window_parallelism = options.window_parallelism;
     let group_width = if batch_size == 1 {
         window_parallelism
     } else {

@@ -5,6 +5,8 @@
   "scripts": {
     "gui:dev": "pnpm --filter @uvr/gui tauri dev",
     "gui:build": "pnpm --filter @uvr/gui tauri build",
+    "gui:build:native": "node tools/build-native.mjs",
+    "build:native": "node tools/build-native.mjs",
     "check": "pnpm --filter @uvr/gui check",
     "build": "pnpm --filter @uvr/gui build"
   }

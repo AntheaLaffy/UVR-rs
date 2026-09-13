@@ -15,7 +15,6 @@ path = "src/main.rs"
 uvr-core = { workspace = true, features = ["audio-io", "burn-cpu"] }
 anyhow = "1.0"
 ctrlc = "=3.5.0"
-rayon = "1.11"
 
 [lints]
 workspace = true

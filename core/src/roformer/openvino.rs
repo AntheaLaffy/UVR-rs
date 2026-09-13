@@ -7,13 +7,31 @@ use ::openvino::{
     CompiledModel, Core, DeviceType, ElementType, InferRequest, InferenceErrorKind, Model,
     PropertyKey, RwPropertyKey, Shape, Tensor,
 };
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 
 use super::{RoformerModel, RoformerOutput, RoformerProgress, audio, stft::PreciseStft};
 use crate::{dsp, resample::Polyphase, task::TaskCancelled};
 
 mod ir;
 pub use ir::RoformerIr;
+
+/// Portable builds carry native libraries beside the executable. Explicit
+/// loading keeps task setup independent of process-wide search-path variables.
+pub(crate) fn create_core() -> Result<Core> {
+    #[cfg(target_os = "linux")]
+    if let Some(directory) = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(|parent| parent.join("lib")))
+    {
+        let library = directory.join("libopenvino_c.so");
+        if library.is_file() {
+            openvino_sys::library::load_from(&library)
+                .map_err(anyhow::Error::msg)
+                .with_context(|| format!("cannot load bundled OpenVINO: {}", library.display()))?;
+        }
+    }
+    Core::new().context("cannot initialize OpenVINO runtime")
+}
 
 #[derive(Debug, Clone)]
 pub struct OpenvinoInfo {
@@ -80,7 +98,7 @@ impl OpenvinoRoformer {
         if !keep_going() {
             return Err(TaskCancelled.into());
         }
-        let mut core = Core::new()?;
+        let mut core = create_core()?;
         for (key, value) in [
             (RwPropertyKey::HintInferencePrecision, "f32".to_owned()),
             (RwPropertyKey::HintPerformanceMode, "LATENCY".to_owned()),
@@ -230,9 +248,7 @@ impl OpenvinoRoformer {
                                 Err(error) if error.kind == InferenceErrorKind::InferCancelled => {
                                     break;
                                 }
-                                Err(error) if error.kind == InferenceErrorKind::ResultNotReady => {
-                                    ()
-                                }
+                                Err(error) if error.kind == InferenceErrorKind::ResultNotReady => {}
                                 Err(error) => return Err(error.into()),
                             }
                         }

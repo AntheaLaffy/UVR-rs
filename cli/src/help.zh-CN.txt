@@ -1,0 +1,38 @@
+UVR — 音频分离
+
+用法：uvr [--lang <zh-CN|en|ja>] [--help | --version]
+      uvr [--lang <zh-CN|en|ja>] inspect-weights <文件>
+      uvr [--lang <zh-CN|en|ja>] inspect-audio <音频>
+      uvr [--lang <zh-CN|en|ja>] separate-vr <5hp|6hp|deecho> <权重> <音频> <输出目录> [选项]
+      uvr [--lang <zh-CN|en|ja>] separate-1296 <权重> <音频> <输出目录> [选项]
+
+语言选项必须放在命令前，也可通过 UVR_LANG 设置；默认 zh-CN。
+
+通用选项：
+  --threads <数量>                  计算线程数，正整数
+VR 选项：
+  --window-frames <帧数>             默认 512，16 的倍数，最大 2048
+  --inference-batch <1..4>            HP 推理 batch，默认 1
+  --parallel-windows <1..8>           HP 窗口并发，默认 4
+1296 选项：
+  --backend <burn|openvino-cpu>       自动选用可用的推荐后端
+  --time-batch <数量>                Burn 时间注意力 batch，默认 62
+  --frequency-batch <数量>           Burn 频率注意力 batch，默认 301
+  --parallel-windows <1..8>           Burn 窗口并发，默认 1
+  --linear-layout <flattened|batched> Burn 线性布局，默认 flattened
+
+inspect-weights 输出文件大小、整文件 SHA-256 和 UVR 元数据 MD5 标识。
+inspect-audio 解码 WAV／FLAC／MP3 并报告声道、采样率和精确长度。
+separate-vr 保存模型主输出与互补输出两条 44.1 kHz 双声道浮点 WAV。
+VR 窗口必须大于两侧上下文：HP 大于 256 帧，DeEcho 大于 128 帧。
+HP batch 大于 1 时窗口并发固定为 1；DeEcho 的 batch 和窗口并发固定为 1。
+TTA／额外掩码后处理关闭；Ctrl-C 在阶段和窗口之间取消；已有输出不会覆盖。
+separate-1296 使用工程基线 v1.1：8 秒窗、重叠数 4、64 位正向频谱、FP32 网络。
+1296 输出人声／伴奏两轨，支持窗内取消；整曲验收与处理链仍在开发。
+可用时 1296 默认使用 OpenVINO CPU，否则使用 Burn；VR 使用 Burn。
+OpenVINO CPU 需要相应构建和原生运行时，仅接受 --threads。
+
+环境兼容：RAYON_NUM_THREADS，以及 Burn 1296 的 UVR_ROFORMER_TIME_BATCH、
+UVR_ROFORMER_FREQUENCY_BATCH、UVR_ROFORMER_WINDOW_PARALLELISM、UVR_LINEAR_LAYOUT。
+显式选项优先于对应环境变量；启动时报告实际生效参数。
+语言设置不改变 stdout 机器可读字段名；底层技术错误保留原文。

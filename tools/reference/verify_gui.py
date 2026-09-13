@@ -134,6 +134,21 @@ class Browser:
         self.wait(lambda: not self.snapshot()["startDisabled"])
         self.click("#start")
 
+    def configure_runtime(self, backend=None, threads=None):
+        fields = {}
+        if backend is not None:
+            fields["runtime-backend"] = backend
+        if threads is not None:
+            fields["runtime-threads"] = str(threads)
+        self.execute("""
+            for (const [id, value] of Object.entries(arguments[0])) {
+                const field = document.getElementById(id);
+                field.value = value;
+                field.dispatchEvent(new Event('input', {bubbles: true}));
+                if (field.value !== value) throw new Error('Runtime option is unavailable: ' + value);
+            }
+        """, fields)
+
     def terminal(self, timeout):
         def finished():
             state = self.snapshot()
@@ -160,6 +175,63 @@ def compare_outputs(paths, expected):
         checks.append({"path": str(path), "max_absolute_error": float(np.max(np.abs(delta))),
                        "rmse": rmse, "reference_rms": rms,
                        "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+    return checks
+
+
+def verify_runtime(browser):
+    browser.execute("""
+        window.__runtimeChecks = null;
+        (async () => {
+            const invoke = window.__TAURI__.core.invoke;
+            const defaults = await invoke('defaults');
+            const rejected = [];
+            for (const [model, runtime] of [
+                ['5hp', {backend: 'burn', threads: 0}],
+                ['5hp', {backend: 'openvino-cpu', threads: 8}],
+                ['1296', {backend: 'burn', threads: 8, roformer: {
+                    timeBatch: 0, frequencyBatch: 301, windowParallelism: 1, linearLayout: 'flattened'}}]
+            ]) {
+                try {
+                    await invoke('start_task', {request: {id: crypto.randomUUID(), model,
+                        input: '/nonexistent/runtime.wav', modelsDir: '/nonexistent/models',
+                        outputDir: '/nonexistent/output', runtime}});
+                    throw new Error('Invalid runtime was accepted');
+                } catch (error) {
+                    if (String(error).includes('Invalid runtime was accepted')) throw error;
+                    rejected.push(String(error));
+                }
+            }
+            window.__runtimeChecks = {defaults: defaults.runtime, rejected};
+        })().catch(error => { window.__runtimeChecks = {error: String(error)}; });
+    """)
+    checks = browser.wait(lambda: browser.execute("return window.__runtimeChecks;"))
+    if "error" in checks:
+        raise ValueError(checks["error"])
+    controls = browser.execute("""
+        const byId = id => document.getElementById(id);
+        const set = (id, value, event = 'input') => {
+            byId(id).value = value;
+            byId(id).dispatchEvent(new Event(event, {bubbles:true}));
+        };
+        const defaults = window.__runtimeChecks.defaults;
+        const choices = Array.from(byId('runtime-backend').options, node => node.value);
+        if (JSON.stringify(choices) !== JSON.stringify(defaults.backends)) throw new Error('Backend capability mismatch');
+        if (byId('runtime-backend').value !== defaults.roformerBackend) throw new Error('Recommended backend not selected');
+        set('runtime-backend', 'burn');
+        set('roformer-time-batch', '7');
+        set('roformer-frequency-batch', '37');
+        set('model', '5hp', 'change');
+        set('vr-inference-batch', '2');
+        if (!byId('vr-window-parallelism').disabled) throw new Error('Batch concurrency conflict');
+        if (byId('runtime-backend').options.length !== 1) throw new Error('VR offers unsupported backend');
+        set('model', 'deecho', 'change');
+        if (!byId('vr-inference-batch').disabled || !byId('vr-window-parallelism').disabled || byId('vr-window-frames').min !== '144') throw new Error('DeEcho constraints missing');
+        set('model', '1296', 'change');
+        if (byId('roformer-time-batch').value !== '7' || byId('roformer-frequency-batch').value !== '37') throw new Error('Model switch lost settings');
+        byId('runtime-reset').click();
+        return {choices, recommended: defaults.roformerBackend, modelSwitch: true, schedulingConstraints: true};
+    """)
+    checks.update(controls)
     return checks
 
 
@@ -278,6 +350,9 @@ def main():
     parser.add_argument("--download-check", action="store_true")
     parser.add_argument("--portable-check", action="store_true")
     parser.add_argument("--empty-library-check", action="store_true")
+    parser.add_argument("--runtime-check", action="store_true")
+    parser.add_argument("--backend", choices=["burn", "openvino-cpu"])
+    parser.add_argument("--threads", type=int)
     args = parser.parse_args()
     args.output = args.output.resolve()
     args.output.mkdir(parents=True, exist_ok=False)
@@ -290,6 +365,8 @@ def main():
         args.binary = binary
     if args.timeout_seconds <= 0:
         parser.error("timeout must be positive")
+    if args.threads is not None and args.threads <= 0:
+        parser.error("threads must be positive")
     manifest_raw = (args.fixtures / "manifest.json").read_bytes()
     manifest = json.loads(manifest_raw)
     case = next(case for case in manifest["cases"] if case["name"] == args.case)
@@ -340,6 +417,11 @@ def main():
                 "tauri:options": {"application": str(args.binary.resolve())}}}})
             browser.session = session["sessionId"]
             browser.wait(lambda: browser.execute("return !!window.__TAURI__ && !document.getElementById('check-models').disabled;"))
+            browser.execute("""
+                const language = document.getElementById('language');
+                language.value = 'zh-CN';
+                language.dispatchEvent(new Event('change', {bubbles:true}));
+            """)
             if browser.execute("return !document.getElementById('preview-note').hidden;"):
                 raise ValueError("Native window incorrectly shows the browser preview notice")
             models = browser.execute("return Array.from(document.querySelectorAll('#model option'), node => node.value);")
@@ -347,6 +429,20 @@ def main():
                 raise ValueError("GUI model choices differ from supported models")
             browser.screenshot(args.output / "ready.png")
             report["checks"].append({"startup": True, "models": models})
+            if args.runtime_check:
+                report["checks"].append({"runtime_options": verify_runtime(browser)})
+                browser.execute("document.getElementById('runtime-advanced').open = true;")
+                browser.screenshot(args.output / "runtime.png")
+            browser.execute("""
+                const model = document.getElementById('model');
+                model.value = arguments[0];
+                model.dispatchEvent(new Event('change', {bubbles:true}));
+            """, variant)
+            browser.configure_runtime(args.backend, args.threads)
+            report["runtime"] = browser.execute("""
+                return {backend: document.getElementById('runtime-backend').value,
+                    threads: Number(document.getElementById('runtime-threads').value)};
+            """)
             if args.empty_library_check:
                 selected = browser.execute("return document.getElementById('models-path').value;")
                 missing = browser.execute("return Array.from(document.querySelectorAll('[data-model]'), row => row.dataset.availability);")

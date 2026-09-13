@@ -34,17 +34,78 @@ const BANDS: [usize; 62] = [
     48, 48, 48, 128, 129,
 ];
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum LinearLayout {
+    #[default]
+    Flattened,
+    Batched,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RoformerOptions {
+    /// Independent frequency bands grouped by each time-attention call.
+    pub time_batch: usize,
+    /// Independent time positions grouped by each frequency-attention call.
+    pub frequency_batch: usize,
+    /// Independent audio windows evaluated together by the Burn scheduler.
+    pub window_parallelism: usize,
+    pub linear_layout: LinearLayout,
+}
+
+impl Default for RoformerOptions {
+    fn default() -> Self {
+        Self {
+            time_batch: BANDS.len(),
+            frequency_batch: DEFAULT_FREQUENCY_BATCH,
+            window_parallelism: 1,
+            linear_layout: LinearLayout::Flattened,
+        }
+    }
+}
+
+impl RoformerOptions {
+    pub fn validate(self) -> Result<()> {
+        ensure!(self.time_batch > 0, "RoFormer time batch must be positive");
+        ensure!(
+            self.frequency_batch > 0,
+            "RoFormer frequency batch must be positive"
+        );
+        ensure!(
+            (1..=8).contains(&self.window_parallelism),
+            "RoFormer window parallelism must be between 1 and 8"
+        );
+        Ok(())
+    }
+
+    /// Legacy command-line experiments can still supply environment variables.
+    /// Explicit task options never consult or mutate process-wide configuration.
+    pub fn from_env() -> Result<Self> {
+        let options = Self {
+            time_batch: configured_batch("UVR_ROFORMER_TIME_BATCH", BANDS.len())?,
+            frequency_batch: configured_batch(
+                "UVR_ROFORMER_FREQUENCY_BATCH",
+                DEFAULT_FREQUENCY_BATCH,
+            )?,
+            window_parallelism: configured_batch("UVR_ROFORMER_WINDOW_PARALLELISM", 1)?,
+            linear_layout: match std::env::var("UVR_LINEAR_LAYOUT").as_deref() {
+                Ok("flattened") | Err(_) => LinearLayout::Flattened,
+                Ok("batched") => LinearLayout::Batched,
+                Ok(value) => {
+                    anyhow::bail!("UVR_LINEAR_LAYOUT must be batched or flattened, got {value}")
+                }
+            },
+        };
+        options.validate()?;
+        Ok(options)
+    }
+}
+
 pub struct RoformerModel {
     bands: Vec<BandProjection>,
     layers: Vec<[Transformer; 2]>,
     norm: RmsNorm,
     masks: Vec<MaskEstimator>,
-    /// Number of independent bands/time positions processed by one
-    /// attention call.  The small defaults preserve the original memory
-    /// footprint; callers doing offline work can raise them when memory is
-    /// available to expose more batch parallelism to Burn Flex.
-    time_batch: usize,
-    frequency_batch: usize,
+    options: RoformerOptions,
 }
 
 impl RoformerModel {
@@ -54,6 +115,11 @@ impl RoformerModel {
     pub const CHUNK: usize = 352800;
 
     pub fn load(path: &Path) -> Result<Self> {
+        Self::load_with_options(path, RoformerOptions::from_env()?)
+    }
+
+    pub fn load_with_options(path: &Path, options: RoformerOptions) -> Result<Self> {
+        options.validate()?;
         let identity = crate::weights::fingerprint(path)?;
         ensure!(
             identity.sha256 == "f6c94864adfb73bbb0ca58ec14d58dd0b364549e9fb61433ae51916f3e2f8d0b",
@@ -77,6 +143,7 @@ impl RoformerModel {
                     input,
                     DIM,
                     true,
+                    options.linear_layout,
                 )?,
             });
             masks.push(MaskEstimator {
@@ -86,6 +153,7 @@ impl RoformerModel {
                     DIM,
                     4 * DIM,
                     true,
+                    options.linear_layout,
                 )?,
                 last: Linear::load(
                     &mut loader,
@@ -93,6 +161,7 @@ impl RoformerModel {
                     4 * DIM,
                     2 * input,
                     true,
+                    options.linear_layout,
                 )?,
             });
         }
@@ -103,37 +172,35 @@ impl RoformerModel {
                     &mut loader,
                     &format!("layers.{layer}.0.layers.0"),
                     Self::CHUNK / Self::HOP + 1,
+                    options.linear_layout,
                 )?,
                 Transformer::load(
                     &mut loader,
                     &format!("layers.{layer}.1.layers.0"),
                     BANDS.len(),
+                    options.linear_layout,
                 )?,
             ]);
         }
         let norm = RmsNorm::load(&mut loader, "final_norm.gamma", DIM)?;
         loader.finish(699)?;
-        // Offline Burn inference benefits from keeping each independent
-        // sequence in one large matmul. These defaults are the measured
-        // speed-first configuration; the environment variables remain
-        // available for lower-memory machines and controlled experiments.
-        let time_batch = configured_batch("UVR_ROFORMER_TIME_BATCH", BANDS.len())?;
-        let frequency_batch =
-            configured_batch("UVR_ROFORMER_FREQUENCY_BATCH", DEFAULT_FREQUENCY_BATCH)?;
         Ok(Self {
             bands,
             layers,
             norm,
             masks,
-            time_batch,
-            frequency_batch,
+            options,
         })
     }
 
     /// Attention batching selected when the checkpoint was loaded.  This is
     /// useful for reporting an experiment without inferring it from timing.
     pub fn batch_sizes(&self) -> (usize, usize) {
-        (self.time_batch, self.frequency_batch)
+        (self.options.time_batch, self.options.frequency_batch)
+    }
+
+    pub fn options(&self) -> RoformerOptions {
+        self.options
     }
 
     /// Planar stereo input, 1025..=352800 samples/channel. Returns stereo with
@@ -156,10 +223,10 @@ impl RoformerModel {
         );
         ensure!(audio.iter().all(|v| v.is_finite()), "audio must be finite");
         let frames = samples / Self::HOP + 1;
+        let (time_batch, frequency_batch) = self.batch_sizes();
         let total = 4
             + 2 * BANDS.len()
-            + DEPTH
-                * (BANDS.len().div_ceil(self.time_batch) + frames.div_ceil(self.frequency_batch));
+            + DEPTH * (BANDS.len().div_ceil(time_batch) + frames.div_ceil(frequency_batch));
         if progress(0, total).is_break() {
             return Err(TaskCancelled.into());
         }
@@ -208,11 +275,11 @@ impl RoformerModel {
         }
         let mut x = T4::cat(features, 1); // [1, band, time, feature]
         for [time, frequency] in &self.layers {
-            x = time.forward_batches(x, self.time_batch, &mut advance)?;
+            x = time.forward_batches(x, time_batch, &mut advance)?;
             x = frequency
                 .forward_batches(
                     cpu::contiguous(x.swap_dims(1, 2)),
-                    self.frequency_batch,
+                    frequency_batch,
                     &mut advance,
                 )?
                 .swap_dims(1, 2);
@@ -283,6 +350,7 @@ impl Linear {
         input: usize,
         output: usize,
         bias: bool,
+        layout: LinearLayout,
     ) -> Result<Self> {
         let weight = Tensor::<Flex, 2>::from_data(
             loader.float(&format!("{prefix}.weight"), &[output, input])?,
@@ -299,7 +367,7 @@ impl Linear {
         } else {
             None
         };
-        let flattened = configured_linear_layout()?;
+        let flattened = layout == LinearLayout::Flattened;
         Ok(Self {
             weight,
             bias,
@@ -320,14 +388,6 @@ impl Linear {
             Some(bias) => x + bias.clone(),
             None => x,
         }
-    }
-}
-
-fn configured_linear_layout() -> Result<bool> {
-    match std::env::var("UVR_LINEAR_LAYOUT").as_deref() {
-        Ok("flattened") | Err(_) => Ok(true),
-        Ok("batched") => Ok(false),
-        Ok(value) => anyhow::bail!("UVR_LINEAR_LAYOUT must be batched or flattened, got {value}"),
     }
 }
 
@@ -371,12 +431,31 @@ struct Transformer {
 }
 
 impl Transformer {
-    fn load(loader: &mut Loader, prefix: &str, sequence: usize) -> Result<Self> {
+    fn load(
+        loader: &mut Loader,
+        prefix: &str,
+        sequence: usize,
+        layout: LinearLayout,
+    ) -> Result<Self> {
         Ok(Self {
-            attention: Attention::load(loader, &format!("{prefix}.0"), sequence)?,
+            attention: Attention::load(loader, &format!("{prefix}.0"), sequence, layout)?,
             norm: RmsNorm::load(loader, &format!("{prefix}.1.net.0.gamma"), DIM)?,
-            first: Linear::load(loader, &format!("{prefix}.1.net.1"), DIM, 4 * DIM, true)?,
-            last: Linear::load(loader, &format!("{prefix}.1.net.4"), 4 * DIM, DIM, true)?,
+            first: Linear::load(
+                loader,
+                &format!("{prefix}.1.net.1"),
+                DIM,
+                4 * DIM,
+                true,
+                layout,
+            )?,
+            last: Linear::load(
+                loader,
+                &format!("{prefix}.1.net.4"),
+                4 * DIM,
+                DIM,
+                true,
+                layout,
+            )?,
         })
     }
     fn forward(&self, x: T4) -> T4 {
@@ -419,7 +498,12 @@ struct Attention {
 }
 
 impl Attention {
-    fn load(loader: &mut Loader, prefix: &str, sequence: usize) -> Result<Self> {
+    fn load(
+        loader: &mut Loader,
+        prefix: &str,
+        sequence: usize,
+        layout: LinearLayout,
+    ) -> Result<Self> {
         let data = loader.float(&format!("{prefix}.rotary_embed.freqs"), &[HEAD_DIM / 2])?;
         let frequencies = data
             .as_slice::<f32>()
@@ -435,9 +519,30 @@ impl Attention {
         }
         Ok(Self {
             norm: RmsNorm::load(loader, &format!("{prefix}.norm.gamma"), DIM)?,
-            qkv: Linear::load(loader, &format!("{prefix}.to_qkv"), DIM, 3 * DIM, false)?,
-            gates: Linear::load(loader, &format!("{prefix}.to_gates"), DIM, HEADS, true)?,
-            out: Linear::load(loader, &format!("{prefix}.to_out.0"), DIM, DIM, false)?,
+            qkv: Linear::load(
+                loader,
+                &format!("{prefix}.to_qkv"),
+                DIM,
+                3 * DIM,
+                false,
+                layout,
+            )?,
+            gates: Linear::load(
+                loader,
+                &format!("{prefix}.to_gates"),
+                DIM,
+                HEADS,
+                true,
+                layout,
+            )?,
+            out: Linear::load(
+                loader,
+                &format!("{prefix}.to_out.0"),
+                DIM,
+                DIM,
+                false,
+                layout,
+            )?,
             cos: T4::from_data(
                 TensorData::new(cos, [1, 1, sequence, HEAD_DIM / 2]),
                 &Default::default(),
@@ -471,5 +576,81 @@ impl Attention {
         let values = probabilities.matmul(component(2)) * gates;
         self.out
             .forward(values.swap_dims(1, 2).reshape([1, batch, sequence, DIM]))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_invalid_explicit_options_before_checkpoint_access() {
+        for options in [
+            RoformerOptions {
+                time_batch: 0,
+                ..Default::default()
+            },
+            RoformerOptions {
+                frequency_batch: 0,
+                ..Default::default()
+            },
+            RoformerOptions {
+                window_parallelism: 0,
+                ..Default::default()
+            },
+            RoformerOptions {
+                window_parallelism: 9,
+                ..Default::default()
+            },
+        ] {
+            let error = RoformerModel::load_with_options(Path::new("missing.ckpt"), options)
+                .err()
+                .unwrap();
+            assert!(error.to_string().starts_with("RoFormer"));
+        }
+    }
+
+    #[test]
+    fn selectable_linear_layouts_preserve_independent_sequences() {
+        let x = T4::from_data(
+            TensorData::new(
+                (0..24).map(|i| i as f32 / 10.0 - 1.0).collect::<Vec<_>>(),
+                [1, 2, 3, 4],
+            ),
+            &Default::default(),
+        );
+        let weight = T4::from_data(
+            TensorData::new(
+                (0..20).map(|i| i as f32 / 7.0 - 1.0).collect::<Vec<_>>(),
+                [1, 1, 4, 5],
+            ),
+            &Default::default(),
+        );
+        let bias = Some(T4::from_data(
+            TensorData::new(vec![0.1, 0.2, 0.3, 0.4, 0.5], [1, 1, 1, 5]),
+            &Default::default(),
+        ));
+        let flattened = Linear {
+            weight: weight.clone(),
+            bias: bias.clone(),
+            flattened: true,
+        }
+        .forward(x.clone())
+        .into_data()
+        .to_vec::<f32>()
+        .unwrap();
+        let batched = Linear {
+            weight,
+            bias,
+            flattened: false,
+        }
+        .forward(x)
+        .into_data()
+        .to_vec::<f32>()
+        .unwrap();
+        assert_eq!(flattened.len(), 30);
+        for (a, b) in flattened.iter().zip(batched) {
+            assert!((a - b).abs() <= 1e-5, "{a} != {b}");
+        }
     }
 }

@@ -1,20 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod locale;
 mod models;
+mod runtime;
 mod tasks;
 
 use tauri::Manager;
 
 fn main() {
-    let threads = std::env::var("RAYON_NUM_THREADS")
-        .ok()
-        .and_then(|v| v.parse::<usize>().ok())
-        .filter(|n| *n > 0)
-        .unwrap_or(2);
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build_global()
-        .expect("无法设置计算线程");
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(tasks::TaskState::default())

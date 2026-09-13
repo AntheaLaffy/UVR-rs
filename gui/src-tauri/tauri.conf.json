@@ -27,11 +27,11 @@
   "bundle": {
     "active": false,
     "icon": [
-      "icons/atri-v1/32x32.png",
-      "icons/atri-v1/128x128.png",
-      "icons/atri-v1/128x128@2x.png",
-      "icons/atri-v1/icon.icns",
-      "icons/atri-v1/icon.ico"
+      "icons/uvr/32x32.png",
+      "icons/uvr/128x128.png",
+      "icons/uvr/128x128@2x.png",
+      "icons/uvr/icon.icns",
+      "icons/uvr/icon.ico"
     ]
   }
 }

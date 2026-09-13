@@ -1,0 +1,40 @@
+UVR — 音声分離
+
+使い方：uvr [--lang <zh-CN|en|ja>] [--help | --version]
+        uvr [--lang <zh-CN|en|ja>] inspect-weights <ファイル>
+        uvr [--lang <zh-CN|en|ja>] inspect-audio <音声>
+        uvr [--lang <zh-CN|en|ja>] separate-vr <5hp|6hp|deecho> <重み> <音声> <出力先> [オプション]
+        uvr [--lang <zh-CN|en|ja>] separate-1296 <重み> <音声> <出力先> [オプション]
+
+--lang はコマンドの前に置きます。UVR_LANG でも設定できます。既定値は zh-CN です。
+
+共通オプション：
+  --threads <数>                    計算スレッド数。正の整数
+VR オプション：
+  --window-frames <フレーム数>        既定値 512。16 の倍数、最大 2048
+  --inference-batch <1..4>           HP 推論バッチ。既定値 1
+  --parallel-windows <1..8>          HP ウィンドウ並列数。既定値 4
+1296 オプション：
+  --backend <burn|openvino-cpu>      利用可能な推奨バックエンドを自動選択
+  --time-batch <数>                 Burn 時間方向の注意機構バッチ。既定値 62
+  --frequency-batch <数>            Burn 周波数方向の注意機構バッチ。既定値 301
+  --parallel-windows <1..8>          Burn ウィンドウ並列数。既定値 1
+  --linear-layout <flattened|batched> Burn 線形層レイアウト。既定値 flattened
+
+inspect-weights はサイズ、ファイル全体の SHA-256、UVR メタデータ MD5 を表示します。
+inspect-audio は WAV／FLAC／MP3 をデコードし、チャンネル数、周波数、正確な長さを表示します。
+separate-vr は主出力と補完トラックを 44.1 kHz ステレオ浮動小数点 WAV に保存します。
+VR ウィンドウは両端の文脈より長くします。HP は 256、DeEcho は 128 フレームより大きくします。
+HP バッチが 1 より大きい場合、並列数は 1 です。DeEcho のバッチと並列数は常に 1 です。
+TTA と追加マスク後処理は無効です。Ctrl-C で段階やウィンドウの間にキャンセルします。
+既存の出力を上書きしません。
+separate-1296 は基準 v1.1 に従い、8 秒窓、重複数 4、float64 前向き STFT、FP32 ネットワークを使います。
+1296 はボーカルと伴奏を出力し、窓内のキャンセルにも対応します。
+楽曲全体の受け入れ検証と複数モデル処理は開発中です。
+1296 は利用可能なら OpenVINO CPU、それ以外は Burn を使用します。VR は Burn です。
+OpenVINO CPU には対応ビルドとネイティブランタイムが必要です。適用できる設定は --threads のみです。
+
+環境変数：RAYON_NUM_THREADS、および Burn 1296 の UVR_ROFORMER_TIME_BATCH、
+UVR_ROFORMER_FREQUENCY_BATCH、UVR_ROFORMER_WINDOW_PARALLELISM、UVR_LINEAR_LAYOUT。
+明示した引数が対応する環境変数より優先されます。起動時に実際の設定を表示します。
+言語設定で機械可読 stdout キーは変わりません。下位層の技術的エラーは原文のままです。

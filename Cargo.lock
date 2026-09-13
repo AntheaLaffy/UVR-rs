@@ -6659,7 +6659,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "ctrlc",
- "rayon",
  "uvr-core",
 ]
 
@@ -6675,6 +6674,7 @@ dependencies = [
  "hound",
  "md-5",
  "openvino",
+ "openvino-sys",
  "rayon",
  "reqwest",
  "rustfft",
@@ -6689,8 +6689,8 @@ dependencies = [
 name = "uvr-gui"
 version = "0.1.0"
 dependencies = [
- "rayon",
  "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

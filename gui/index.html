@@ -4,65 +4,108 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>UVR</title>
-    <link rel="icon" type="image/png" sizes="32x32" href="/branding/uvr-atri-32.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/branding/uvr-32.png" />
+    <script src="/appearance.js"></script>
   </head>
   <body>
     <main class="shell">
       <header class="brand">
-        <img class="brand-icon" src="/branding/uvr-atri.png" width="48" height="48" alt="" aria-hidden="true" />
-        <div><h1>UVR <span>音轨工作台</span></h1><p>人声、伴奏与混响分离</p></div>
-        <span class="badge">本地 CPU · 验证版</span>
+        <img class="brand-icon" src="/branding/uvr.png" width="48" height="48" alt="" aria-hidden="true" />
+        <div><h1>UVR <span data-i18n="app.workspace">音轨工作台</span></h1><p data-i18n="app.subtitle">人声、伴奏与混响分离</p></div>
+        <div class="header-tools">
+          <span class="badge" data-i18n="app.badge">本地 CPU · 验证版</span>
+          <div class="language-control"><label for="language" data-i18n="app.language">语言</label><select id="language" data-i18n-aria-label="app.language"><option value="zh-CN">简体中文</option><option value="ja">日本語</option><option value="en">English</option></select></div>
+          <div class="appearance-control">
+            <button id="appearance-toggle" type="button" aria-expanded="false" aria-controls="appearance-menu" data-i18n="appearance.toggle">外观</button>
+            <div id="appearance-menu" class="appearance-menu" hidden>
+              <label for="color-mode" data-i18n="appearance.mode">明暗模式</label>
+              <select id="color-mode"><option value="system" data-i18n="appearance.system">跟随系统</option><option value="light" data-i18n="appearance.light">浅色</option><option value="dark" data-i18n="appearance.dark">深色</option></select>
+              <label for="color-theme" data-i18n="appearance.theme">主题色</label>
+              <select id="color-theme"><option value="violet" data-i18n="appearance.violet">紫罗兰</option><option value="blue" data-i18n="appearance.blue">海蓝</option><option value="teal" data-i18n="appearance.teal">青绿</option></select>
+            </div>
+          </div>
+        </div>
       </header>
-      <p id="preview-note" class="preview-note" hidden>网页预览：请在桌面应用中处理本地音频。</p>
+      <p id="preview-note" class="preview-note" data-i18n="app.preview" hidden>网页预览：请在桌面应用中处理本地音频。</p>
       <div class="workspace">
         <section class="card settings" aria-labelledby="settings-title">
-          <div class="section-title"><span class="number">01</span><h2 id="settings-title">设置分离任务</h2></div>
-          <form id="task-form">
-            <label for="input-path">输入音频 <small>WAV / FLAC / MP3</small></label>
-            <div class="path-field"><input id="input-path" required placeholder="选择需要处理的音频" autocomplete="off" /><button type="button" data-pick="input">选择文件</button></div>
-            <label for="model">分离模型</label>
+          <div class="section-title"><span class="number">01</span><h2 id="settings-title" data-i18n="settings.title">设置分离任务</h2></div>
+          <form id="task-form" novalidate>
+            <label for="input-path"><span data-i18n="settings.input">输入音频</span> <small>WAV / FLAC / MP3</small></label>
+            <div class="path-field"><input id="input-path" required placeholder="选择需要处理的音频" data-i18n-placeholder="settings.inputPlaceholder" autocomplete="off" /><button type="button" data-pick="input" data-i18n="settings.chooseFile">选择文件</button></div>
+            <label for="model" data-i18n="settings.model">分离模型</label>
             <select id="model">
-              <option value="1296">人声与伴奏 · BS-RoFormer 1296</option>
+              <option value="1296" data-i18n="model.1296.label">人声与伴奏 · BS-RoFormer 1296</option>
               <option value="5hp">Karaoke · 5-HP</option>
               <option value="6hp">Karaoke · 6-HP</option>
-              <option value="deecho">去回声与混响 · DeEcho</option>
+              <option value="deecho" data-i18n="model.deecho.label">去回声与混响 · DeEcho</option>
             </select>
             <p id="model-note" class="field-note">输出人声与伴奏两轨，保留原始增益。</p>
-            <label for="models-path">模型目录</label>
-            <div class="path-field"><input id="models-path" required placeholder="包含原始权重文件的文件夹" autocomplete="off" /><button type="button" data-pick="models">选择目录</button></div>
+            <section id="runtime-settings" class="runtime-settings" aria-labelledby="runtime-title">
+              <div class="runtime-heading"><h3 id="runtime-title" data-i18n="runtime.title">推理运行时</h3><button id="runtime-reset" type="button" data-i18n="runtime.reset">恢复默认</button></div>
+              <div class="runtime-grid">
+                <div><label for="runtime-backend" data-i18n="runtime.backend">计算后端</label><select id="runtime-backend"><option value="burn">Burn CPU · 默认</option></select></div>
+                <div><label for="runtime-threads" data-i18n="runtime.threads">计算线程数</label><input id="runtime-threads" type="number" min="1" max="9007199254740991" step="1" required /></div>
+              </div>
+              <p id="runtime-note" class="field-note"></p>
+              <details id="runtime-advanced" class="runtime-advanced">
+                <summary data-i18n="runtime.advanced">高级推理参数</summary>
+                <div id="runtime-vr-options" hidden>
+                  <div class="runtime-grid">
+                    <div><label for="vr-window-frames" data-i18n="runtime.windowFrames">窗口帧数</label><input id="vr-window-frames" type="number" min="272" max="2048" step="16" required /></div>
+                    <div><label for="vr-inference-batch" data-i18n="runtime.batch">推理批量</label><input id="vr-inference-batch" type="number" min="1" max="4" step="1" required /></div>
+                    <div><label for="vr-window-parallelism" data-i18n="runtime.parallel">并行窗口数</label><input id="vr-window-parallelism" type="number" min="1" max="8" step="1" required /></div>
+                  </div>
+                  <p id="vr-window-note" class="field-note"></p>
+                  <p id="vr-parallelism-note" class="field-note"></p>
+                </div>
+                <div id="runtime-roformer-options">
+                  <div class="runtime-grid">
+                    <div><label for="roformer-time-batch" data-i18n="runtime.timeBatch">时间注意力批量</label><input id="roformer-time-batch" type="number" min="1" max="9007199254740991" step="1" required /></div>
+                    <div><label for="roformer-frequency-batch" data-i18n="runtime.frequencyBatch">频率注意力批量</label><input id="roformer-frequency-batch" type="number" min="1" max="9007199254740991" step="1" required /></div>
+                    <div><label for="roformer-window-parallelism" data-i18n="runtime.parallel">并行窗口数</label><input id="roformer-window-parallelism" type="number" min="1" max="8" step="1" required /></div>
+                    <div><label for="roformer-linear-layout" data-i18n="runtime.layout">线性层布局</label><select id="roformer-linear-layout"><option value="flattened" data-i18n="runtime.flattenedDefault">展平 · 默认</option><option value="batched" data-i18n="runtime.batched">分批</option></select></div>
+                  </div>
+                  <p class="field-note" data-i18n="runtime.roformerHint">批量控制每次计算的注意力分组数；并行窗口数为 1–8。增大数值会提高内存需求。</p>
+                </div>
+              </details>
+              <p id="runtime-summary" class="runtime-summary" aria-live="polite"></p>
+            </section>
+            <label for="models-path" data-i18n="settings.models">模型目录</label>
+            <div class="path-field"><input id="models-path" required placeholder="包含原始权重文件的文件夹" data-i18n-placeholder="settings.modelsPlaceholder" autocomplete="off" /><button type="button" data-pick="models" data-i18n="settings.chooseDirectory">选择目录</button></div>
             <p class="field-note filename" id="weights-name"></p>
-            <p class="field-note" id="model-availability">正在检测模型…</p>
-            <label for="output-path">输出目录</label>
-            <div class="path-field"><input id="output-path" required placeholder="选择分离音轨的保存位置" autocomplete="off" /><button type="button" data-pick="output">选择目录</button></div>
-            <div class="actions"><button id="start" class="primary" type="submit" disabled>开始分离 <span aria-hidden="true">→</span></button><span class="output-format">双声道 · 44.1 kHz<br />32 位浮点 WAV</span></div>
+            <p class="field-note" id="model-availability" data-i18n="library.checking">正在检测模型…</p>
+            <label for="output-path" data-i18n="settings.output">输出目录</label>
+            <div class="path-field"><input id="output-path" required placeholder="选择分离音轨的保存位置" data-i18n-placeholder="settings.outputPlaceholder" autocomplete="off" /><button type="button" data-pick="output" data-i18n="settings.chooseDirectory">选择目录</button></div>
+            <div class="actions"><button id="start" class="primary" type="submit" disabled>开始分离 →</button><span class="output-format" data-i18n="settings.format">双声道 · 44.1 kHz · 32 位浮点 WAV</span></div>
           </form>
         </section>
         <section class="card task" aria-labelledby="task-title">
-          <div class="section-title"><span class="number">02</span><h2 id="task-title">处理进度</h2><span id="task-status" class="status">等待开始</span></div>
+          <div class="section-title"><span class="number">02</span><h2 id="task-title" data-i18n="task.title">处理进度</h2><span id="task-status" class="status">等待开始</span></div>
           <div class="progress-panel">
             <div class="progress-heading"><strong id="phase" role="status">准备好音频后即可开始</strong><span id="percentage"></span></div>
-            <progress id="progress" max="1" value="0" aria-label="当前阶段进度"></progress>
-            <div class="progress-meta"><span>已用时 <time id="elapsed">00:00</time></span><button id="cancel" type="button" disabled>取消任务</button></div>
+            <progress id="progress" max="1" value="0" aria-label="当前阶段进度" data-i18n-aria-label="task.progressLabel"></progress>
+            <div class="progress-meta"><span><span data-i18n="task.elapsed">已用时</span> <time id="elapsed">00:00</time></span><button id="cancel" type="button" disabled>取消任务</button></div>
           </div>
-          <div class="result-heading"><h3>输出音轨</h3><span id="output-count">0 个文件</span></div>
+          <div class="result-heading"><h3 data-i18n="task.outputs">输出音轨</h3><span id="output-count">0 个文件</span></div>
           <div id="outputs" class="outputs"><p class="empty">完成后，两条音轨的保存位置会显示在这里。</p></div>
-          <details class="log-panel"><summary>任务记录</summary><pre id="task-log" aria-label="任务记录">尚无任务。</pre></details>
-          <p class="task-note">处理速度取决于音频长度与模型。取消时会等待当前计算片段结束，已有同名输出会保留。</p>
+          <details class="log-panel"><summary data-i18n="task.log">任务记录</summary><pre id="task-log" aria-label="任务记录" data-i18n-aria-label="task.log">尚无任务。</pre></details>
+          <p class="task-note" data-i18n="task.note">处理速度取决于音频长度与模型。取消时会等待当前计算片段结束，已有同名输出会保留。</p>
         </section>
       </div>
       <details id="model-library" class="card library">
-        <summary><strong>模型管理</strong><span id="library-summary">选择目录后检测</span></summary>
-        <p class="library-note">模型保存在所选目录，支持目录软链接。也可以把 models 文件夹与程序放在一起携带。</p>
-        <div class="library-actions"><button id="check-models" type="button" disabled>重新检测</button><button id="reset-models" type="button" disabled>使用默认目录</button></div>
+        <summary><strong data-i18n="library.title">模型管理</strong><span id="library-summary" data-i18n="library.initial">选择目录后检测</span></summary>
+        <p class="library-note" data-i18n="library.note">模型保存在所选目录，支持目录软链接。也可以把 models 文件夹与程序放在一起携带。</p>
+        <div class="library-actions"><button id="check-models" type="button" disabled data-i18n="library.refresh">重新检测</button><button id="reset-models" type="button" disabled data-i18n="library.reset">使用默认目录</button></div>
         <div id="model-list" class="model-list"></div>
         <div class="download-settings">
-          <div><label for="download-source">下载来源</label><select id="download-source"><option value="huggingface">Hugging Face</option><option value="github">GitHub</option></select></div>
-          <div><label for="download-proxy">代理地址 <small>可选</small></label><input id="download-proxy" placeholder="http://127.0.0.1:7890 或 socks5h://…" autocomplete="off" spellcheck="false" /><p class="field-note">留空使用系统／环境代理设置。</p></div>
+          <div><label for="download-source" data-i18n="download.source">下载来源</label><select id="download-source"><option value="huggingface">Hugging Face</option><option value="github">GitHub</option></select></div>
+          <div><label for="download-proxy"><span data-i18n="download.proxy">代理地址</span> <small data-i18n="download.optional">可选</small></label><input id="download-proxy" placeholder="http://127.0.0.1:7890 或 socks5h://…" data-i18n-placeholder="download.proxyPlaceholder" autocomplete="off" spellcheck="false" /><p class="field-note" data-i18n="download.proxyHint">留空使用系统／环境代理设置。</p></div>
         </div>
-        <div class="download-status"><span id="download-message" role="status">按需下载，校验通过后即可使用。</span><button id="cancel-download" type="button" disabled>取消下载</button></div>
-        <progress id="download-progress" max="1" value="0" aria-label="模型下载进度"></progress>
+        <div class="download-status"><span id="download-message" role="status" data-i18n="download.initial">按需下载，校验通过后即可使用。</span><button id="cancel-download" type="button" disabled data-i18n="download.cancel">取消下载</button></div>
+        <progress id="download-progress" max="1" value="0" aria-label="模型下载进度" data-i18n-aria-label="download.progressLabel"></progress>
       </details>
-      <footer><span>原始权重 · 离线处理</span><span>单模型工作台 · 多模型处理链正在接入</span></footer>
+      <footer><span data-i18n="footer.local">原始权重 · 离线处理</span><span data-i18n="footer.scope">单模型工作台 · 多模型处理链正在接入</span></footer>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

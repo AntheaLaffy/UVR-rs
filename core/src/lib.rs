@@ -18,6 +18,9 @@ pub mod audio_io;
 #[cfg(all(feature = "audio-io", feature = "burn-cpu"))]
 pub mod file_task;
 
+#[cfg(all(feature = "audio-io", feature = "burn-cpu"))]
+pub mod runtime;
+
 #[cfg(feature = "burn-cpu")]
 pub mod vr;
 

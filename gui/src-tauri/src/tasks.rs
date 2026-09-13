@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     ops::ControlFlow,
     path::PathBuf,
     sync::{
@@ -8,6 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crate::locale::Locale;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
@@ -78,6 +80,10 @@ pub struct TaskRequest {
     input: PathBuf,
     output_dir: PathBuf,
     models_dir: PathBuf,
+    #[serde(default)]
+    runtime: crate::runtime::RuntimeRequest,
+    #[serde(default)]
+    lang: Locale,
 }
 
 #[derive(Clone, Serialize)]
@@ -86,6 +92,8 @@ struct TaskEvent {
     id: String,
     status: &'static str,
     phase: String,
+    phase_key: &'static str,
+    phase_args: BTreeMap<&'static str, String>,
     fraction: Option<f64>,
     elapsed_seconds: f64,
     outputs: Vec<String>,
@@ -95,28 +103,40 @@ struct TaskEvent {
 #[serde(rename_all = "camelCase")]
 pub struct Defaults {
     models_dir: Option<String>,
+    runtime: crate::runtime::RuntimeDefaults,
 }
 
 #[tauri::command]
-pub fn defaults() -> Defaults {
+pub fn defaults(lang: Option<Locale>) -> Defaults {
+    let _ = lang;
     let models_dir = std::env::current_exe()
         .ok()
         .zip(std::env::current_dir().ok())
         .map(|(exe, cwd)| uvr_core::model_catalog::default_directory(&exe, &cwd))
         .map(|p| p.to_string_lossy().into_owned());
-    Defaults { models_dir }
+    Defaults {
+        models_dir,
+        runtime: crate::runtime::defaults(),
+    }
 }
 
 #[tauri::command]
-pub async fn choose_path(app: AppHandle, kind: String) -> Result<Option<String>, String> {
+pub async fn choose_path(
+    app: AppHandle,
+    kind: String,
+    lang: Option<Locale>,
+) -> Result<Option<String>, String> {
+    let lang = lang.unwrap_or_default();
     if !matches!(kind.as_str(), "input" | "output" | "models") {
-        return Err("未知路径类型".into());
+        return Err(lang
+            .text("未知路径类型", "Unknown path type", "不明なパスの種類です")
+            .into());
     }
     tauri::async_runtime::spawn_blocking(move || {
         let dialog = app.dialog().file();
         let result = if kind == "input" {
             dialog
-                .add_filter("音频", &["wav", "flac", "mp3"])
+                .add_filter(lang.text("音频", "Audio", "音声"), &["wav", "flac", "mp3"])
                 .blocking_pick_file()
         } else {
             dialog.blocking_pick_folder()
@@ -134,8 +154,16 @@ pub async fn choose_path(app: AppHandle, kind: String) -> Result<Option<String>,
 }
 
 #[tauri::command]
-pub fn cancel_task(state: State<'_, TaskState>, id: String) -> Result<bool, String> {
-    let active = state.active.lock().map_err(|_| "任务状态不可用")?;
+pub fn cancel_task(
+    state: State<'_, TaskState>,
+    id: String,
+    lang: Option<Locale>,
+) -> Result<bool, String> {
+    let lang = lang.unwrap_or_default();
+    let active = state
+        .active
+        .lock()
+        .map_err(|_| lang.error("任务状态不可用".into()))?;
     if let Some(task) = active.as_ref().filter(|task| task.id == id) {
         task.cancelled.store(true, Ordering::Relaxed);
         return Ok(true);
@@ -149,14 +177,28 @@ pub fn start_task(
     state: State<'_, TaskState>,
     request: TaskRequest,
 ) -> Result<(), String> {
+    let lang = request.lang;
     if request.input.as_os_str().is_empty()
         || request.output_dir.as_os_str().is_empty()
         || request.models_dir.as_os_str().is_empty()
     {
-        return Err("请选择音频、模型目录和输出目录".into());
+        return Err(lang
+            .text(
+                "请选择音频、模型目录和输出目录",
+                "Choose audio, model and output locations",
+                "音声ファイル、モデルフォルダー、保存先を選択してください",
+            )
+            .into());
     }
-    let spec = ModelSpec::from_key(&request.model).ok_or("不支持的模型")?;
-    let cancelled = state.begin(&request.id)?;
+    let spec = ModelSpec::from_key(&request.model)
+        .ok_or_else(|| lang.text("不支持的模型", "Unsupported model", "未対応のモデルです"))?;
+    let runtime = request
+        .runtime
+        .resolve(spec)
+        .map_err(|error| lang.error(error))?;
+    let cancelled = state
+        .begin(&request.id)
+        .map_err(|error| lang.error(error))?;
     let worker_id = request.id.clone();
     let worker_app = app.clone();
     let worker = std::thread::Builder::new()
@@ -166,11 +208,12 @@ pub fn start_task(
             let mut last_phase = None;
             let mut last_emit = Instant::now() - Duration::from_secs(1);
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                file_task::separate_file(
+                file_task::separate_file_with_options(
                     spec,
                     &request.models_dir.join(spec.weights_name()),
                     &request.input,
                     &request.output_dir,
+                    runtime,
                     |p| {
                         if cancelled.load(Ordering::Relaxed) {
                             return ControlFlow::Break(());
@@ -179,13 +222,18 @@ pub fn start_task(
                             && (last_phase != Some(p.stage)
                                 || last_emit.elapsed() >= Duration::from_millis(200))
                         {
-                            let (phase, fraction) = describe_progress(spec, p);
+                            let (phase, fraction) = describe_progress(spec, p, lang);
                             let _ = worker_app.emit(
                                 "task-progress",
                                 TaskEvent {
                                     id: request.id.clone(),
                                     status: "running",
                                     phase,
+                                    phase_key: stage_key(p.stage),
+                                    phase_args: BTreeMap::from([
+                                        ("completed", p.windows_completed.to_string()),
+                                        ("total", p.windows_total.to_string()),
+                                    ]),
                                     fraction,
                                     elapsed_seconds: start.elapsed().as_secs_f64(),
                                     outputs: Vec::new(),
@@ -198,28 +246,60 @@ pub fn start_task(
                     },
                 )
             }));
+            let mut phase_args = BTreeMap::new();
             let (status, phase, outputs) = match result {
-                Ok(Ok(output)) => (
-                    "completed",
-                    format!(
-                        "完成 · {} Hz · {} 个采样 / 声道",
-                        output.sample_rate, output.samples_per_channel
-                    ),
-                    output
-                        .paths
-                        .into_iter()
-                        .map(|p| p.to_string_lossy().into_owned())
-                        .collect(),
-                ),
-                Ok(Err(error)) if error.is::<TaskCancelled>() => {
-                    ("cancelled", "已取消，未完成的输出已清理".into(), Vec::new())
+                Ok(Ok(output)) => {
+                    phase_args.insert("sampleRate", output.sample_rate.to_string());
+                    phase_args.insert("samples", output.samples_per_channel.to_string());
+                    (
+                        "completed",
+                        format!(
+                            "{} · {} Hz · {} {}",
+                            lang.text("完成", "Complete", "完了"),
+                            output.sample_rate,
+                            output.samples_per_channel,
+                            lang.text(
+                                "个采样 / 声道",
+                                "samples / channel",
+                                "サンプル / チャンネル"
+                            )
+                        ),
+                        output
+                            .paths
+                            .into_iter()
+                            .map(|p| p.to_string_lossy().into_owned())
+                            .collect(),
+                    )
                 }
+                Ok(Err(error)) if error.is::<TaskCancelled>() => (
+                    "cancelled",
+                    lang.text(
+                        "已取消，未完成的输出已清理",
+                        "Cancelled; incomplete outputs removed",
+                        "キャンセルしました。未完了の出力は削除されました",
+                    )
+                    .into(),
+                    Vec::new(),
+                ),
                 Ok(Err(error)) => ("failed", format!("{error:#}"), Vec::new()),
                 Err(_) => (
                     "failed",
-                    "处理线程出现异常，请查看终端日志".into(),
+                    lang.text(
+                        "处理线程出现异常，请查看终端日志",
+                        "The processing worker failed; check the terminal log",
+                        "処理スレッドでエラーが発生しました。端末のログを確認してください",
+                    )
+                    .into(),
                     Vec::new(),
                 ),
+            };
+            let phase_key = match status {
+                "completed" => "task.phase.complete",
+                "cancelled" => "task.phase.cancelled",
+                _ => {
+                    phase_args.insert("error", phase.clone());
+                    "task.phase.error"
+                }
             };
             let state = worker_app.state::<TaskState>();
             let closing = state.finish(&request.id);
@@ -229,6 +309,8 @@ pub fn start_task(
                     id: request.id,
                     status,
                     phase,
+                    phase_key,
+                    phase_args,
                     fraction: (status == "completed").then_some(1.0),
                     elapsed_seconds: start.elapsed().as_secs_f64(),
                     outputs,
@@ -240,16 +322,51 @@ pub fn start_task(
         });
     if let Err(error) = worker {
         state.finish(&worker_id);
-        return Err(format!("无法启动处理线程：{error}"));
+        return Err(format!(
+            "{}: {error}",
+            lang.text(
+                "无法启动处理线程",
+                "Cannot start the processing worker",
+                "処理スレッドを開始できません"
+            )
+        ));
     }
     Ok(())
 }
 
-fn describe_progress(spec: ModelSpec, p: FileProgress) -> (String, Option<f64>) {
+fn stage_key(stage: FileStage) -> &'static str {
+    match stage {
+        FileStage::Decode => "task.phase.decode",
+        FileStage::LoadModel => "task.phase.loadModel",
+        FileStage::Analysis => "task.phase.analysis",
+        FileStage::Inference => "task.phase.inference",
+        FileStage::Reconstruction => "task.phase.reconstruction",
+        FileStage::Encode => "task.phase.encode",
+        FileStage::Complete => "task.phase.complete",
+    }
+}
+
+fn describe_progress(spec: ModelSpec, p: FileProgress, lang: Locale) -> (String, Option<f64>) {
     match p.stage {
-        FileStage::Decode => ("读取音频".into(), None),
-        FileStage::LoadModel => ("核验并载入模型".into(), None),
-        FileStage::Analysis => ("分析音频".into(), None),
+        FileStage::Decode => (
+            lang.text("读取音频", "Reading audio", "音声を読み込み中")
+                .into(),
+            None,
+        ),
+        FileStage::LoadModel => (
+            lang.text(
+                "核验并载入模型",
+                "Verifying and loading model",
+                "モデルを検証・読み込み中",
+            )
+            .into(),
+            None,
+        ),
+        FileStage::Analysis => (
+            lang.text("分析音频", "Analyzing audio", "音声を解析中")
+                .into(),
+            None,
+        ),
         FileStage::Inference => {
             let part = if matches!(spec, ModelSpec::Roformer1296) && p.total > 0 {
                 p.completed as f64 / p.total as f64
@@ -261,14 +378,27 @@ fn describe_progress(spec: ModelSpec, p: FileProgress) -> (String, Option<f64>) 
             });
             (
                 format!(
-                    "分离音频 · {}/{} 窗口",
-                    p.windows_completed, p.windows_total
+                    "{} · {}/{}",
+                    lang.text("分离音频", "Separating audio", "音声を分離中"),
+                    p.windows_completed,
+                    p.windows_total
                 ),
                 fraction,
             )
         }
-        FileStage::Reconstruction => ("重建音轨".into(), None),
-        FileStage::Encode => ("保存 WAV".into(), None),
-        FileStage::Complete => ("完成".into(), Some(1.0)),
+        FileStage::Reconstruction => (
+            lang.text(
+                "重建音轨",
+                "Reconstructing tracks",
+                "音声トラックを再構成中",
+            )
+            .into(),
+            None,
+        ),
+        FileStage::Encode => (
+            lang.text("保存 WAV", "Saving WAV", "WAVを保存中").into(),
+            None,
+        ),
+        FileStage::Complete => (lang.text("完成", "Complete", "完了").into(), Some(1.0)),
     }
 }

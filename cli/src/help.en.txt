@@ -1,0 +1,40 @@
+UVR — Audio separation
+
+Usage: uvr [--lang <zh-CN|en|ja>] [--help | --version]
+       uvr [--lang <zh-CN|en|ja>] inspect-weights <file>
+       uvr [--lang <zh-CN|en|ja>] inspect-audio <audio>
+       uvr [--lang <zh-CN|en|ja>] separate-vr <5hp|6hp|deecho> <weights> <audio> <output-dir> [options]
+       uvr [--lang <zh-CN|en|ja>] separate-1296 <weights> <audio> <output-dir> [options]
+
+Place --lang before the command, or set UVR_LANG. The default is zh-CN.
+
+Common options:
+  --threads <count>                  Compute threads; a positive integer
+VR options:
+  --window-frames <frames>           Default 512; a multiple of 16, at most 2048
+  --inference-batch <1..4>           HP inference batch; default 1
+  --parallel-windows <1..8>          HP concurrent windows; default 4
+1296 options:
+  --backend <burn|openvino-cpu>      Automatically selects the available recommendation
+  --time-batch <count>              Burn time-attention batch; default 62
+  --frequency-batch <count>         Burn frequency-attention batch; default 301
+  --parallel-windows <1..8>          Burn concurrent windows; default 1
+  --linear-layout <flattened|batched> Burn linear layout; default flattened
+
+inspect-weights reports file size, whole-file SHA-256 and the UVR metadata MD5.
+inspect-audio decodes WAV/FLAC/MP3 and reports channels, sample rate and exact length.
+separate-vr saves primary and complementary tracks as 44.1 kHz stereo float WAVs.
+VR windows must exceed both context margins: more than 256 frames for HP, 128 for DeEcho.
+HP batch >1 fixes window concurrency at 1; DeEcho always uses batch 1 and concurrency 1.
+TTA and extra mask postprocessing are off. Ctrl-C cancels between stages/windows.
+Existing output files are never overwritten.
+separate-1296 uses baseline v1.1: 8-second windows, 4 overlaps, float64 forward STFT, FP32 network.
+1296 outputs vocals/instrumental and supports cancellation within windows.
+Full-song acceptance and multi-model chains remain in development.
+1296 defaults to OpenVINO CPU when available, otherwise Burn; VR uses Burn.
+OpenVINO CPU requires the optional build and native runtime; only --threads applies.
+
+Environment compatibility: RAYON_NUM_THREADS, plus UVR_ROFORMER_TIME_BATCH,
+UVR_ROFORMER_FREQUENCY_BATCH, UVR_ROFORMER_WINDOW_PARALLELISM and UVR_LINEAR_LAYOUT for Burn 1296.
+Explicit options override the corresponding variables; effective settings are reported at startup.
+Language does not change machine-readable stdout keys; underlying technical errors retain their original text.

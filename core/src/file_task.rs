@@ -11,7 +11,8 @@ use anyhow::{Context, Result};
 
 use crate::{
     audio_io,
-    roformer::{RoformerModel, RoformerOutput, RoformerProgress, RoformerStage},
+    roformer::{RoformerModel, RoformerOptions, RoformerOutput, RoformerProgress, RoformerStage},
+    runtime::{RuntimeBackend, RuntimeOptions},
     task::TaskCancelled,
     vr::{VrOptions, VrSeparator, VrStage},
     vr_dsp::VrVariant,
@@ -207,6 +208,59 @@ pub fn separate_file_with_backend(
     input: &Path,
     directory: &Path,
     backend: RoformerBackend,
+    progress: impl FnMut(FileProgress) -> ControlFlow<()>,
+) -> Result<FileOutput> {
+    separate_file_impl(spec, weights, input, directory, backend, None, progress)
+}
+
+/// Each task owns its CPU thread budget, so GUI jobs can change settings without
+/// mutating process-wide environment variables or a previously initialized pool.
+pub fn separate_file_with_options(
+    spec: ModelSpec,
+    weights: &Path,
+    input: &Path,
+    directory: &Path,
+    runtime: RuntimeOptions,
+    progress: impl FnMut(FileProgress) -> ControlFlow<()> + Send,
+) -> Result<FileOutput> {
+    let runtime = runtime.effective_for(spec)?;
+    let spec = match spec {
+        ModelSpec::Vr { variant, .. } => ModelSpec::Vr {
+            variant,
+            options: runtime.vr,
+        },
+        ModelSpec::Roformer1296 => ModelSpec::Roformer1296,
+    };
+    let backend = match runtime.backend {
+        RuntimeBackend::Burn => RoformerBackend::Burn,
+        RuntimeBackend::OpenvinoCpu => RoformerBackend::OpenvinoCpu {
+            threads: runtime.threads,
+        },
+    };
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(runtime.threads)
+        .build()
+        .context("cannot create inference thread pool")?
+        .install(|| {
+            separate_file_impl(
+                spec,
+                weights,
+                input,
+                directory,
+                backend,
+                Some(runtime.roformer),
+                progress,
+            )
+        })
+}
+
+fn separate_file_impl(
+    spec: ModelSpec,
+    weights: &Path,
+    input: &Path,
+    directory: &Path,
+    backend: RoformerBackend,
+    roformer: Option<RoformerOptions>,
     mut progress: impl FnMut(FileProgress) -> ControlFlow<()>,
 ) -> Result<FileOutput> {
     anyhow::ensure!(
@@ -246,7 +300,10 @@ pub fn separate_file_with_backend(
             Network::Vr(Box::new(VrSeparator::load(variant, weights)?), options)
         }
         ModelSpec::Roformer1296 => Network::Roformer(match backend {
-            RoformerBackend::Burn => RoformerEngine::Burn(Box::new(RoformerModel::load(weights)?)),
+            RoformerBackend::Burn => RoformerEngine::Burn(Box::new(match roformer {
+                Some(options) => RoformerModel::load_with_options(weights, options)?,
+                None => RoformerModel::load(weights)?,
+            })),
             RoformerBackend::OpenvinoCpu { threads } => {
                 #[cfg(feature = "openvino")]
                 {
@@ -365,4 +422,59 @@ pub fn separate_file_with_backend(
         samples_per_channel: samples,
         timings,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn consecutive_tasks_use_their_own_thread_budget() {
+        let directory = tempfile::tempdir().unwrap();
+        for threads in [1, 3] {
+            let mut observed_threads = 0;
+            let error = separate_file_with_options(
+                ModelSpec::from_key("5hp").unwrap(),
+                Path::new("unused.pth"),
+                Path::new("unused.wav"),
+                directory.path(),
+                RuntimeOptions {
+                    threads,
+                    ..Default::default()
+                },
+                |_| {
+                    observed_threads = rayon::current_num_threads();
+                    ControlFlow::Break(())
+                },
+            )
+            .unwrap_err();
+            assert!(error.is::<TaskCancelled>());
+            assert_eq!(observed_threads, threads);
+        }
+        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn invalid_explicit_options_fail_before_file_work() {
+        let directory = tempfile::tempdir().unwrap();
+        let output = directory.path().join("must-not-be-created");
+        let mut progressed = false;
+        let mut runtime = RuntimeOptions::default();
+        runtime.roformer.frequency_batch = 0;
+        let error = separate_file_with_options(
+            ModelSpec::Roformer1296,
+            Path::new("missing.ckpt"),
+            Path::new("missing.wav"),
+            &output,
+            runtime,
+            |_| {
+                progressed = true;
+                ControlFlow::Continue(())
+            },
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("frequency batch"));
+        assert!(!progressed);
+        assert!(!output.exists());
+    }
 }

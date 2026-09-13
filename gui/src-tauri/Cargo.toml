@@ -6,6 +6,7 @@ publish.workspace = true
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]
+openvino = ["uvr-core/openvino"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -14,8 +15,10 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "=2.7.2"
 serde = { version = "1", features = ["derive"] }
-rayon = "1.11"
 uvr-core = { workspace = true, features = ["burn-cpu", "audio-io", "model-download"] }
+
+[dev-dependencies]
+serde_json = "1.0.151"
 
 [lints]
 workspace = true

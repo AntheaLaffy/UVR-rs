@@ -1,12 +1,13 @@
 import type { Bridge } from "./bridge";
+import { getLanguage, onLanguageChange, phaseText, t, type TranslatedPhase } from "./i18n";
 
 interface Entry {
   key: string; name: string; filename: string; sizeBytes: number;
   status: "ready" | "missing" | "invalid" | "error"; message: string;
 }
-interface DownloadEvent {
+interface DownloadEvent extends TranslatedPhase {
   id: string; model: string; status: "running" | "completed" | "cancelled" | "failed";
-  phase: string; received: number; total: number; path: string | null;
+  received: number; total: number; path: string | null;
 }
 interface Context {
   directory(): string; selected(): string; busy(): boolean;
@@ -27,6 +28,8 @@ export class ModelLibrary {
   private directory = "";
   private generation = 0;
   private downloadId = "";
+  private summaryText: () => string = () => t("library.initial");
+  private messageText: () => string = () => t("download.initial");
   private readonly panel = node<HTMLDetailsElement>("model-library");
   private readonly list = node("model-list");
   private readonly refresh = node<HTMLButtonElement>("check-models");
@@ -42,11 +45,17 @@ export class ModelLibrary {
     this.reset.addEventListener("click", () => { context.resetDirectory(); void this.scan(); });
     this.cancel.addEventListener("click", async () => {
       this.cancel.disabled = true;
-      try { await bridge.core.invoke("cancel_task", { id: this.downloadId }); }
-      catch (error) { this.message.textContent = String(error); this.cancel.disabled = false; }
+      try { await bridge.core.invoke("cancel_task", { id: this.downloadId, lang: getLanguage() }); }
+      catch (error) { this.setMessage(() => t("download.phase.error", { error: String(error) })); this.cancel.disabled = false; }
     });
     window.addEventListener("focus", () => {
       if (this.connected && !this.checking && !this.downloading && !context.busy()) void this.scan();
+    });
+    onLanguageChange(() => {
+      this.render();
+      node("library-summary").textContent = this.checking ? t("library.checking") : this.summaryText();
+      this.message.textContent = this.messageText();
+      this.updateControls();
     });
   }
 
@@ -77,9 +86,8 @@ export class ModelLibrary {
     this.list.querySelectorAll<HTMLElement>("[data-model]").forEach(row => {
       row.classList.toggle("selected", row.dataset.model === selected);
     });
-    node("model-availability").textContent = this.checking ? "正在校验模型文件…"
-      : this.ready(selected) ? "当前模型已就绪"
-      : "当前模型尚未就绪，可在下方模型管理中检测或下载。";
+    node("model-availability").textContent = t(this.checking ? "library.verifying"
+      : this.ready(selected) ? "library.available" : "library.unavailable");
   }
 
   async scan(): Promise<void> {
@@ -87,23 +95,25 @@ export class ModelLibrary {
     const directory = this.context.directory();
     const generation = ++this.generation;
     this.checking = true;
-    node("library-summary").textContent = "正在检测模型…";
+    node("library-summary").textContent = t("library.checking");
     this.context.changed();
     try {
-      const entries = await this.bridge.core.invoke<Entry[]>("inspect_models", { directory });
+      const entries = await this.bridge.core.invoke<Entry[]>("inspect_models", { directory, lang: getLanguage() });
       if (generation !== this.generation || directory !== this.context.directory()) return;
       this.directory = directory;
       this.entries = new Map(entries.map(entry => [entry.key, entry]));
       this.render();
       const count = entries.filter(entry => entry.status === "ready").length;
-      node("library-summary").textContent = `${count} / ${entries.length} 个模型已就绪`;
+      this.summaryText = () => t("library.count", { count, total: entries.length });
+      node("library-summary").textContent = this.summaryText();
       if (this.entries.get(this.context.selected())?.status !== "ready") this.panel.open = true;
     } catch (error) {
       if (generation !== this.generation) return;
       this.entries.clear();
       this.directory = "";
       this.list.replaceChildren();
-      node("library-summary").textContent = String(error);
+      this.summaryText = () => String(error);
+      node("library-summary").textContent = this.summaryText();
       this.panel.open = true;
     } finally {
       if (generation === this.generation) { this.checking = false; this.context.changed(); }
@@ -124,12 +134,13 @@ export class ModelLibrary {
       filename.textContent = entry.filename;
       const availability = document.createElement("span");
       availability.className = `model-state ${entry.status}`;
-      availability.textContent = entry.message;
+      availability.textContent = t(`library.${entry.status}`);
+      if (entry.status === "invalid" || entry.status === "error") availability.title = entry.message;
       info.append(title, filename, availability);
       const action = document.createElement("button");
       action.type = "button";
       action.dataset.download = entry.key;
-      action.textContent = entry.status === "ready" ? "已就绪" : entry.status === "invalid" ? "重新下载" : "下载";
+      action.textContent = t(entry.status === "ready" ? "library.actionReady" : entry.status === "invalid" ? "library.redownload" : "library.download");
       action.addEventListener("click", () => { void this.download(entry); });
       row.append(info, action);
       this.list.append(row);
@@ -141,17 +152,17 @@ export class ModelLibrary {
     this.downloading = true;
     this.downloadId = crypto.randomUUID?.() ?? `${Date.now().toString(36)}-download`;
     this.panel.open = true;
-    this.message.textContent = `准备下载 ${entry.name}`;
+    this.setMessage(() => t("download.prepare", { model: entry.name }));
     this.bar.removeAttribute("value");
     this.context.changed();
     try {
       await this.bridge.core.invoke("download_model", { request: {
         id: this.downloadId, model: entry.key, directory: this.context.directory(),
         source: this.source.value, proxy: this.proxy.value.trim() || null,
-        replaceInvalid: entry.status === "invalid",
+        replaceInvalid: entry.status === "invalid", lang: getLanguage(),
       } });
     } catch (error) {
-      this.message.textContent = String(error);
+      this.setMessage(() => t("download.phase.error", { error: String(error) }));
       this.downloading = false;
       this.bar.value = 0;
       this.context.changed();
@@ -160,8 +171,8 @@ export class ModelLibrary {
 
   private receive(event: DownloadEvent): void {
     if (event.id !== this.downloadId) return;
-    this.message.textContent = event.status === "running"
-      ? `${event.phase} · ${size(event.received)} / ${size(event.total)}` : event.phase;
+    this.setMessage(() => event.status === "running"
+      ? `${phaseText(event)} · ${size(event.received)} / ${size(event.total)}` : phaseText(event));
     this.message.dataset.status = event.status;
     if (event.status === "running" && !event.received) this.bar.removeAttribute("value");
     else this.bar.value = event.total ? event.received / event.total : 0;
@@ -170,5 +181,10 @@ export class ModelLibrary {
       this.context.changed();
       void this.scan();
     }
+  }
+
+  private setMessage(text: () => string): void {
+    this.messageText = text;
+    this.message.textContent = text();
   }
 }

@@ -50,16 +50,12 @@ impl RoformerModel {
         sample_rate: u32,
         progress: impl FnMut(RoformerProgress) -> ControlFlow<()>,
     ) -> Result<RoformerOutput> {
-        // Burn Flex and the RoFormer kernels already consume the global Rayon
+        // Burn Flex and the RoFormer kernels already consume the Rayon
         // pool inside every attention/linear operation. Keep window-level
         // parallelism opt-in: nesting another Rayon fan-out over full 8-second
         // windows oversubscribes the same pool and raises RSS without a stable
         // throughput gain on this model.
-        let parallelism = super::configured_batch("UVR_ROFORMER_WINDOW_PARALLELISM", 1)?;
-        ensure!(
-            parallelism <= 8,
-            "UVR_ROFORMER_WINDOW_PARALLELISM must be <= 8"
-        );
+        let parallelism = self.options.window_parallelism;
         if parallelism == 1 {
             separate_with(channels, sample_rate, progress, |input, samples, report| {
                 self.predict_window_with_progress(input, samples, report)
@@ -501,5 +497,30 @@ mod tests {
             |_, _, _| panic!("must not enter cancelled inference"),
         );
         assert!(result.err().unwrap().is::<TaskCancelled>());
+    }
+
+    #[test]
+    fn parallel_windows_preserve_serial_overlap_and_tail() {
+        let wave = (0..RoformerModel::CHUNK + 1001)
+            .map(|i| (i % 127) as f32 / 127.0 - 0.5)
+            .collect::<Vec<_>>();
+        let serial = separate_with(
+            &[&wave],
+            44100,
+            |_| ControlFlow::Continue(()),
+            |audio, _, _| Ok(audio.iter().map(|sample| sample * 0.25).collect()),
+        )
+        .unwrap();
+        let parallel = separate_with_parallel(
+            &[&wave],
+            44100,
+            2,
+            |_| ControlFlow::Continue(()),
+            |audio, _| Ok(audio.iter().map(|sample| sample * 0.25).collect()),
+        )
+        .unwrap();
+        assert_eq!(serial.samples_per_channel, wave.len());
+        assert_eq!(parallel.vocals, serial.vocals);
+        assert_eq!(parallel.instrumental, serial.instrumental);
     }
 }

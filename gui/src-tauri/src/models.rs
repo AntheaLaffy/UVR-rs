@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     ops::ControlFlow,
     path::PathBuf,
     sync::{
@@ -18,6 +19,7 @@ use uvr_core::{
     task::TaskCancelled,
 };
 
+use crate::locale::Locale;
 use crate::tasks::TaskState;
 
 #[derive(Default)]
@@ -40,9 +42,17 @@ pub struct ModelEntry {
 pub async fn inspect_models(
     state: State<'_, LibraryState>,
     directory: PathBuf,
+    lang: Option<Locale>,
 ) -> Result<Vec<ModelEntry>, String> {
+    let lang = lang.unwrap_or_default();
     if directory.as_os_str().is_empty() {
-        return Err("请选择模型目录".into());
+        return Err(lang
+            .text(
+                "请选择模型目录",
+                "Choose a model directory",
+                "モデルフォルダーを選択してください",
+            )
+            .into());
     }
     let generation = state.generation.clone();
     let id = generation.fetch_add(1, Ordering::Relaxed) + 1;
@@ -57,11 +67,29 @@ pub async fn inspect_models(
                 }
             });
             let (status, message) = match result {
-                Ok(Availability::Ready) => ("ready", "已校验，可直接使用".into()),
-                Ok(Availability::Missing) => ("missing", "尚未下载".into()),
+                Ok(Availability::Ready) => (
+                    "ready",
+                    lang.text(
+                        "已校验，可直接使用",
+                        "Verified and ready",
+                        "検証済み・使用可能",
+                    )
+                    .into(),
+                ),
+                Ok(Availability::Missing) => (
+                    "missing",
+                    lang.text("尚未下载", "Not downloaded", "未ダウンロード")
+                        .into(),
+                ),
                 Ok(Availability::Invalid(reason)) => ("invalid", reason),
                 Err(error) if error.is::<TaskCancelled>() => {
-                    return Err("检测已由新目录取代".into());
+                    return Err(lang
+                        .text(
+                            "检测已由新目录取代",
+                            "Scan replaced by a newer directory selection",
+                            "フォルダーが変更されたため検出を中止しました",
+                        )
+                        .into());
                 }
                 Err(error) => ("error", format!("{error:#}")),
             };
@@ -89,6 +117,8 @@ pub struct DownloadRequest {
     source: String,
     proxy: Option<String>,
     replace_invalid: bool,
+    #[serde(default)]
+    lang: Locale,
 }
 
 #[derive(Clone, Serialize)]
@@ -98,6 +128,8 @@ struct DownloadEvent {
     model: &'static str,
     status: &'static str,
     phase: String,
+    phase_key: &'static str,
+    phase_args: BTreeMap<&'static str, String>,
     received: u64,
     total: u64,
     path: Option<String>,
@@ -109,16 +141,34 @@ pub fn download_model(
     state: State<'_, TaskState>,
     request: DownloadRequest,
 ) -> Result<(), String> {
-    let info = ModelInfo::from_key(&request.model).ok_or("不支持的模型")?;
+    let lang = request.lang;
+    let info = ModelInfo::from_key(&request.model)
+        .ok_or_else(|| lang.text("不支持的模型", "Unsupported model", "未対応のモデルです"))?;
     if request.directory.as_os_str().is_empty() {
-        return Err("请选择模型目录".into());
+        return Err(lang
+            .text(
+                "请选择模型目录",
+                "Choose a model directory",
+                "モデルフォルダーを選択してください",
+            )
+            .into());
     }
     let source = match request.source.as_str() {
         "huggingface" => DownloadSource::HuggingFace,
         "github" => DownloadSource::GitHub,
-        _ => return Err("不支持的下载来源".into()),
+        _ => {
+            return Err(lang
+                .text(
+                    "不支持的下载来源",
+                    "Unsupported download source",
+                    "未対応のダウンロード元です",
+                )
+                .into());
+        }
     };
-    let cancelled = state.begin(&request.id)?;
+    let cancelled = state
+        .begin(&request.id)
+        .map_err(|error| lang.error(error))?;
     let worker_id = request.id.clone();
     let worker = std::thread::Builder::new()
         .name("uvr-model-download".into())
@@ -149,7 +199,9 @@ pub fn download_model(
                                     id: request.id.clone(),
                                     model: info.key,
                                     status: "running",
-                                    phase: describe(p).into(),
+                                    phase: describe(p, lang).into(),
+                                    phase_key: stage_key(p.stage),
+                                    phase_args: BTreeMap::new(),
                                     received: p.completed_bytes,
                                     total: p.total_bytes,
                                     path: None,
@@ -162,22 +214,57 @@ pub fn download_model(
                     },
                 ))
             }));
+            let mut phase_key = "download.phase.error";
             let (status, phase, path) = match result {
                 Ok(Ok(output)) => (
                     "completed",
                     if output.downloaded {
-                        "下载完成，校验通过"
+                        phase_key = "download.phase.completed";
+                        lang.text(
+                            "下载完成，校验通过",
+                            "Downloaded and verified",
+                            "ダウンロードと検証が完了しました",
+                        )
                     } else {
-                        "模型已存在，校验通过"
+                        phase_key = "download.phase.existing";
+                        lang.text(
+                            "模型已存在，校验通过",
+                            "Existing model verified",
+                            "既存のモデルを検証しました",
+                        )
                     }
                     .into(),
                     Some(output.path.to_string_lossy().into_owned()),
                 ),
                 Ok(Err(error)) if error.is::<TaskCancelled>() => {
-                    ("cancelled", "下载已取消，临时文件已清理".into(), None)
+                    phase_key = "download.phase.cancelled";
+                    (
+                        "cancelled",
+                        lang.text(
+                            "下载已取消，临时文件已清理",
+                            "Download cancelled; temporary files removed",
+                            "ダウンロードをキャンセルし、一時ファイルを削除しました",
+                        )
+                        .into(),
+                        None,
+                    )
                 }
                 Ok(Err(error)) => ("failed", format!("{error:#}"), None),
-                Err(_) => ("failed", "下载线程出现异常，请查看终端日志".into(), None),
+                Err(_) => (
+                    "failed",
+                    lang.text(
+                        "下载线程出现异常，请查看终端日志",
+                        "The download worker failed; check the terminal log",
+                        "ダウンロードスレッドでエラーが発生しました。端末のログを確認してください",
+                    )
+                    .into(),
+                    None,
+                ),
+            };
+            let phase_args = if status == "failed" {
+                BTreeMap::from([("error", phase.clone())])
+            } else {
+                BTreeMap::new()
             };
             let closing = app.state::<TaskState>().finish(&request.id);
             let _ = app.emit(
@@ -187,6 +274,8 @@ pub fn download_model(
                     model: info.key,
                     status,
                     phase,
+                    phase_key,
+                    phase_args,
                     received: if status == "completed" {
                         info.size_bytes
                     } else {
@@ -202,17 +291,52 @@ pub fn download_model(
         });
     if let Err(error) = worker {
         state.finish(&worker_id);
-        return Err(format!("无法启动下载线程：{error}"));
+        return Err(format!(
+            "{}: {error}",
+            lang.text(
+                "无法启动下载线程",
+                "Cannot start the download worker",
+                "ダウンロードスレッドを開始できません"
+            )
+        ));
     }
     Ok(())
 }
 
-fn describe(progress: DownloadProgress) -> &'static str {
+fn stage_key(stage: DownloadStage) -> &'static str {
+    match stage {
+        DownloadStage::Checking => "download.phase.checking",
+        DownloadStage::Connecting => "download.phase.connecting",
+        DownloadStage::Receiving => "download.phase.receiving",
+        DownloadStage::Verifying => "download.phase.verifying",
+        DownloadStage::Complete => "download.phase.ready",
+    }
+}
+
+fn describe(progress: DownloadProgress, lang: Locale) -> &'static str {
     match progress.stage {
-        DownloadStage::Checking => "检查已有模型",
-        DownloadStage::Connecting => "正在连接下载源",
-        DownloadStage::Receiving => "正在下载模型",
-        DownloadStage::Verifying => "校验下载文件",
-        DownloadStage::Complete => "模型已就绪",
+        DownloadStage::Checking => lang.text(
+            "检查已有模型",
+            "Checking existing model",
+            "既存のモデルを確認中",
+        ),
+        DownloadStage::Connecting => lang.text(
+            "正在连接下载源",
+            "Connecting to download source",
+            "ダウンロード元に接続中",
+        ),
+        DownloadStage::Receiving => lang.text(
+            "正在下载模型",
+            "Downloading model",
+            "モデルをダウンロード中",
+        ),
+        DownloadStage::Verifying => lang.text(
+            "校验下载文件",
+            "Verifying download",
+            "ダウンロードしたファイルを検証中",
+        ),
+        DownloadStage::Complete => {
+            lang.text("模型已就绪", "Model ready", "モデルの準備ができました")
+        }
     }
 }

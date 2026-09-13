@@ -4,12 +4,12 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
+use crate::locale::Locale;
 use anyhow::{Context, Result};
 use uvr_core::{
     audio_io,
-    file_task::{self, FileStage, ModelSpec, RoformerBackend},
-    vr::VrOptions,
-    vr_dsp::VrVariant,
+    file_task::{self, FileStage, ModelSpec},
+    runtime::{LinearLayout, RuntimeBackend, RuntimeOptions},
 };
 
 static CANCELLED: AtomicBool = AtomicBool::new(false);
@@ -17,13 +17,19 @@ fn keep_going() -> bool {
     !CANCELLED.load(Ordering::Relaxed)
 }
 
-fn install_cancellation() -> Result<()> {
-    ctrlc::set_handler(|| CANCELLED.store(true, Ordering::Relaxed))
-        .context("无法安装 Ctrl-C 处理器")
+fn install_cancellation(locale: Locale) -> Result<()> {
+    ctrlc::set_handler(|| CANCELLED.store(true, Ordering::Relaxed)).with_context(|| {
+        tr!(
+            locale,
+            "无法安装 Ctrl-C 处理器",
+            "Cannot install Ctrl-C handler",
+            "Ctrl-C ハンドラーを設定できません"
+        )
+    })
 }
 
-pub fn inspect(path: &Path) -> Result<()> {
-    install_cancellation()?;
+pub fn inspect(path: &Path, locale: Locale) -> Result<()> {
+    install_cancellation(locale)?;
     let audio = audio_io::decode(path, keep_going)?;
     println!(
         "sample_rate: {}\nchannels: {}\nsamples_per_channel: {}\nduration_seconds: {:.6}",
@@ -36,58 +42,68 @@ pub fn inspect(path: &Path) -> Result<()> {
 }
 
 pub fn separate(
-    _variant_name: &str,
-    variant: VrVariant,
-    weights: &Path,
-    input: &Path,
-    directory: &Path,
-    options: VrOptions,
-) -> Result<()> {
-    run(
-        ModelSpec::Vr { variant, options },
-        weights,
-        input,
-        directory,
-        false,
-    )
-}
-
-pub fn separate_roformer(
-    weights: &Path,
-    input: &Path,
-    directory: &Path,
-    openvino: bool,
-) -> Result<()> {
-    run(ModelSpec::Roformer1296, weights, input, directory, openvino)
-}
-
-fn run(
     spec: ModelSpec,
     weights: &Path,
     input: &Path,
     directory: &Path,
-    openvino: bool,
+    runtime: RuntimeOptions,
+    locale: Locale,
 ) -> Result<()> {
-    install_cancellation()?;
-    let threads: usize = std::env::var("RAYON_NUM_THREADS")
-        .map_or(Ok(2), |s| s.parse())
-        .context("RAYON_NUM_THREADS 必须为正整数")?;
-    anyhow::ensure!(threads > 0, "RAYON_NUM_THREADS 必须为正整数");
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build_global()?;
-    let mut last = None;
-    let backend = if openvino {
-        RoformerBackend::OpenvinoCpu { threads }
-    } else {
-        RoformerBackend::Burn
+    let runtime = runtime.effective_for(spec)?;
+    install_cancellation(locale)?;
+    let openvino = runtime.backend == RuntimeBackend::OpenvinoCpu;
+    let backend = match runtime.backend {
+        RuntimeBackend::Burn => "Burn CPU",
+        RuntimeBackend::OpenvinoCpu => "OpenVINO CPU",
     };
-    let output = file_task::separate_file_with_backend(
+    eprintln!(
+        "{}",
+        tr!(
+            locale,
+            "运行时：{backend}，{} 线程",
+            "Runtime: {backend}, {} threads",
+            "ランタイム：{backend}、{} スレッド",
+            runtime.threads
+        )
+    );
+    match spec {
+        ModelSpec::Vr { .. } => eprintln!(
+            "{}",
+            tr!(
+                locale,
+                "生效参数：窗口 {} 帧，推理 batch {}，窗口并发 {}",
+                "Effective settings: {} frames/window, inference batch {}, concurrent windows {}",
+                "実際の設定：窓 {} フレーム、推論バッチ {}、並列窓数 {}",
+                runtime.vr.window_frames,
+                runtime.vr.inference_batch,
+                runtime.vr.window_parallelism,
+            )
+        ),
+        ModelSpec::Roformer1296 if !openvino => eprintln!(
+            "{}",
+            tr!(
+                locale,
+                "生效参数：时间 batch {}，频率 batch {}，窗口并发 {}，线性布局 {}",
+                "Effective settings: time batch {}, frequency batch {}, concurrent windows {}, linear layout {}",
+                "実際の設定：時間バッチ {}、周波数バッチ {}、並列窓数 {}、線形層レイアウト {}",
+                runtime.roformer.time_batch,
+                runtime.roformer.frequency_batch,
+                runtime.roformer.window_parallelism,
+                match runtime.roformer.linear_layout {
+                    LinearLayout::Flattened => "flattened",
+                    LinearLayout::Batched => "batched",
+                },
+            )
+        ),
+        ModelSpec::Roformer1296 => (),
+    }
+    let mut last = None;
+    let output = file_task::separate_file_with_options(
         spec,
         weights,
         input,
         directory,
-        backend,
+        runtime,
         |progress| {
             if !keep_going() {
                 return ControlFlow::Break(());
@@ -96,12 +112,32 @@ fn run(
                 .is_none_or(|previous: file_task::FileProgress| previous.stage != progress.stage);
             if last != Some(progress) {
                 match progress.stage {
-                    FileStage::Decode if changed_stage => eprintln!("解码：{}", input.display()),
+                    FileStage::Decode if changed_stage => eprintln!(
+                        "{}",
+                        tr!(
+                            locale,
+                            "解码：{}",
+                            "Decoding: {}",
+                            "デコード：{}",
+                            input.display()
+                        )
+                    ),
                     FileStage::LoadModel if changed_stage => {
-                        let backend = if openvino { "OpenVINO CPU" } else { "Burn CPU" };
-                        eprintln!("载入模型：{}（{backend}，{threads} 线程）", spec.key())
+                        eprintln!(
+                            "{}",
+                            tr!(
+                                locale,
+                                "载入模型：{}",
+                                "Loading model: {}",
+                                "モデルの読み込み：{}",
+                                spec.key()
+                            )
+                        )
                     }
-                    FileStage::Analysis if changed_stage => eprintln!("分析音频…"),
+                    FileStage::Analysis if changed_stage => eprintln!(
+                        "{}",
+                        tr!(locale, "分析音频…", "Analyzing audio…", "音声を解析中…")
+                    ),
                     FileStage::Inference
                         if !matches!(spec, ModelSpec::Roformer1296)
                             || openvino
@@ -109,21 +145,50 @@ fn run(
                     {
                         if matches!(spec, ModelSpec::Roformer1296) && progress.total > 0 {
                             eprintln!(
-                                "推理：{}/{} 窗口，窗内 {}/{}",
-                                progress.windows_completed,
-                                progress.windows_total,
-                                progress.completed,
-                                progress.total
+                                "{}",
+                                tr!(
+                                    locale,
+                                    "推理：{}/{} 窗口，窗内 {}/{}",
+                                    "Inference: {}/{} windows, within window {}/{}",
+                                    "推論：{}/{} ウィンドウ、窓内 {}/{}",
+                                    progress.windows_completed,
+                                    progress.windows_total,
+                                    progress.completed,
+                                    progress.total
+                                )
                             );
                         } else {
                             eprintln!(
-                                "推理：{}/{} 窗口",
-                                progress.windows_completed, progress.windows_total
+                                "{}",
+                                tr!(
+                                    locale,
+                                    "推理：{}/{} 窗口",
+                                    "Inference: {}/{} windows",
+                                    "推論：{}/{} ウィンドウ",
+                                    progress.windows_completed,
+                                    progress.windows_total
+                                )
                             );
                         }
                     }
-                    FileStage::Reconstruction if changed_stage => eprintln!("重建音轨…"),
-                    FileStage::Encode if changed_stage => eprintln!("写入 WAV…"),
+                    FileStage::Reconstruction if changed_stage => eprintln!(
+                        "{}",
+                        tr!(
+                            locale,
+                            "重建音轨…",
+                            "Reconstructing tracks…",
+                            "トラックを再構成中…"
+                        )
+                    ),
+                    FileStage::Encode if changed_stage => eprintln!(
+                        "{}",
+                        tr!(
+                            locale,
+                            "写入 WAV…",
+                            "Writing WAV files…",
+                            "WAV を書き込み中…"
+                        )
+                    ),
                     _ => (),
                 }
             }
@@ -139,14 +204,20 @@ fn run(
         output.sample_rate, output.samples_per_channel
     );
     eprintln!(
-        "完成：{:.3}s（解码 {:.3}，模型 {:.3}，预处理 {:.3}，网络 {:.3}，重建 {:.3}，编码 {:.3}）",
-        output.timings.total_seconds,
-        output.timings.decode_seconds,
-        output.timings.load_seconds,
-        output.timings.analysis_seconds,
-        output.timings.network_seconds,
-        output.timings.reconstruction_seconds,
-        output.timings.encode_seconds
+        "{}",
+        tr!(
+            locale,
+            "完成：{:.3}s（解码 {:.3}，模型 {:.3}，预处理 {:.3}，网络 {:.3}，重建 {:.3}，编码 {:.3}）",
+            "Completed: {:.3}s (decode {:.3}, model {:.3}, preprocessing {:.3}, network {:.3}, reconstruction {:.3}, encode {:.3})",
+            "完了：{:.3}s（デコード {:.3}、モデル {:.3}、前処理 {:.3}、推論 {:.3}、再構成 {:.3}、エンコード {:.3}）",
+            output.timings.total_seconds,
+            output.timings.decode_seconds,
+            output.timings.load_seconds,
+            output.timings.analysis_seconds,
+            output.timings.network_seconds,
+            output.timings.reconstruction_seconds,
+            output.timings.encode_seconds
+        )
     );
     Ok(())
 }

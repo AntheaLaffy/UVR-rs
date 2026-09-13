@@ -1,51 +1,81 @@
 use std::{path::Path, process::ExitCode};
 
-use uvr_core::{task::TaskCancelled, vr::VrOptions, vr_dsp::VrVariant};
+use uvr_core::{runtime::RuntimeOptions, task::TaskCancelled};
 
+#[macro_use]
+mod locale;
+mod args;
 mod audio;
 
-fn finish(result: anyhow::Result<()>) -> ExitCode {
+use locale::Locale;
+
+fn finish(result: anyhow::Result<()>, locale: Locale) -> ExitCode {
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) if error.is::<TaskCancelled>() => {
-            eprintln!("处理已取消。");
+            eprintln!(
+                "{}",
+                tr!(
+                    locale,
+                    "处理已取消。",
+                    "Processing cancelled.",
+                    "処理をキャンセルしました。"
+                )
+            );
             ExitCode::from(130)
         }
         Err(error) => {
-            eprintln!("处理失败：{error:#}");
+            eprintln!(
+                "{}",
+                tr!(
+                    locale,
+                    "处理失败：{error:#}",
+                    "Processing failed: {error:#}",
+                    "処理に失敗しました：{error:#}"
+                )
+            );
             ExitCode::FAILURE
         }
     }
 }
 
-fn usage_error() -> ExitCode {
-    eprintln!("命令或参数不正确。使用 uvr --help 查看当前功能。");
+fn usage_error(message: &str, locale: Locale) -> ExitCode {
+    eprintln!(
+        "{}",
+        tr!(
+            locale,
+            "参数错误：{message}。使用 uvr --help 查看当前功能。",
+            "Argument error: {message}. Run uvr --lang en --help for usage.",
+            "引数エラー：{message}。uvr --lang ja --help で使い方を確認できます。"
+        )
+    );
     ExitCode::from(2)
 }
 
 fn main() -> ExitCode {
-    let args: Vec<_> = std::env::args_os().skip(1).collect();
+    let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+    let (locale, args) = match Locale::parse(&arguments) {
+        Ok(parsed) => parsed,
+        Err((locale, error)) => return usage_error(&error, locale),
+    };
     if args.is_empty() || (args.len() == 1 && (args[0] == "--help" || args[0] == "-h")) {
-        println!(concat!(
-            "UVR — 音频分离\n\n用法：uvr [--help | --version]\n",
-            "      uvr inspect-weights <文件>\n      uvr inspect-audio <音频>\n",
-            "      uvr separate-vr <5hp|6hp|deecho> <权重> <音频> <输出目录> [--window-frames <帧数>] [--parallel-windows <数量>]\n\n",
-            "      uvr separate-1296 <权重> <音频> <输出目录> [--backend <burn|openvino-cpu>]\n\n",
-            "inspect-weights 输出文件大小、整文件 SHA-256 和 UVR 元数据 MD5 标识。\n",
-            "inspect-audio 解码 WAV／FLAC／MP3 并报告声道、采样率和精确长度。\n",
-            "separate-vr 为 CPU 验证版，保存模型主输出与互补输出两条 44.1 kHz 双声道浮点 WAV。\n",
-            "默认 512 帧、HP 窗口并发 4，TTA／额外掩码后处理关闭；帧数可为 16 的倍数且不超过 2048。\n",
-            "RAYON_NUM_THREADS 可设线程数；Ctrl-C 在阶段和窗口之间取消；已有输出不会覆盖。\n",
-            "separate-1296 使用工程基线 v1.1：8 秒窗、重叠数 4、64 位正向频谱、FP32 网络。\n",
-            "1296 输出人声／伴奏两轨，支持窗内取消；当前为 CPU 验证版，整曲验收与处理链仍在开发。\n",
-            "OpenVINO CPU 是可选实验后端，需要相应构建和原生运行时。"
-        ));
+        print!("{}", locale.help());
+        println!(
+            "{}",
+            tr!(
+                locale,
+                "本机默认计算线程数：{}（最多 8 个可用逻辑线程）。",
+                "Default compute threads on this machine: {} (up to 8 available logical CPUs).",
+                "このマシンの既定スレッド数：{}（利用可能な論理 CPU の最大 8 個）。",
+                RuntimeOptions::default().threads
+            )
+        );
         ExitCode::SUCCESS
     } else if args.len() == 1 && (args[0] == "--version" || args[0] == "-V") {
         println!("uvr {}", env!("CARGO_PKG_VERSION"));
         ExitCode::SUCCESS
     } else if args.len() == 2 && args[0] == "inspect-weights" {
-        match uvr_core::weights::fingerprint(std::path::Path::new(&args[1])) {
+        match uvr_core::weights::fingerprint(Path::new(&args[1])) {
             Ok(result) => {
                 println!(
                     "size_bytes: {}\nsha256: {}\nuvr_md5: {}",
@@ -54,77 +84,45 @@ fn main() -> ExitCode {
                 ExitCode::SUCCESS
             }
             Err(error) => {
-                eprintln!("无法核验权重文件：{error}");
+                eprintln!(
+                    "{}",
+                    tr!(
+                        locale,
+                        "无法核验权重文件：{error}",
+                        "Cannot inspect weights: {error}",
+                        "重みファイルを確認できません：{error}"
+                    )
+                );
                 ExitCode::FAILURE
             }
         }
     } else if args.len() == 2 && args[0] == "inspect-audio" {
-        finish(audio::inspect(Path::new(&args[1])))
-    } else if (args.len() == 4 || args.len() == 6) && args[0] == "separate-1296" {
-        let openvino = if args.len() == 6 {
-            if args[4] != "--backend" {
-                return usage_error();
-            }
-            match args[5].to_str() {
-                Some("burn") => false,
-                Some("openvino-cpu") => true,
-                _ => return usage_error(),
-            }
-        } else {
-            false
+        finish(audio::inspect(Path::new(&args[1]), locale), locale)
+    } else if args[0] == "separate-1296" || args[0] == "separate-vr" {
+        let command = match args::separation(args, locale) {
+            Ok(command) => command,
+            Err(error) => return usage_error(&error, locale),
         };
-        finish(audio::separate_roformer(
-            Path::new(&args[1]),
-            Path::new(&args[2]),
-            Path::new(&args[3]),
-            openvino,
-        ))
-    } else if (args.len() == 5 || args.len() == 7 || args.len() == 9) && args[0] == "separate-vr" {
-        let (name, variant) = match args[1].to_str() {
-            Some("5hp") => ("5hp", VrVariant::HpFive),
-            Some("6hp") => ("6hp", VrVariant::HpSix),
-            Some("deecho") => ("deecho", VrVariant::DeEcho),
-            _ => return usage_error(),
-        };
-        let mut options = VrOptions::default();
-        if args.len() > 5 {
-            for pair in args[5..].chunks_exact(2) {
-                let Some(value) = pair[1].to_str() else {
-                    return usage_error();
-                };
-                match pair[0].to_str() {
-                    Some("--window-frames") => {
-                        let Some(frames) = value.parse().ok() else {
-                            return usage_error();
-                        };
-                        options.window_frames = frames;
-                    }
-                    Some("--parallel-windows") => {
-                        let Some(parallelism) = value.parse().ok() else {
-                            return usage_error();
-                        };
-                        options.window_parallelism = parallelism;
-                    }
-                    _ => return usage_error(),
-                }
-            }
-        }
-        if options.window_frames <= 2 * variant.offset()
-            || options.window_frames > 2048
-            || !options.window_frames.is_multiple_of(16)
-            || !(1..=8).contains(&options.window_parallelism)
-        {
-            return usage_error();
-        }
-        finish(audio::separate(
-            name,
-            variant,
-            Path::new(&args[2]),
-            Path::new(&args[3]),
-            Path::new(&args[4]),
-            options,
-        ))
+        finish(
+            audio::separate(
+                command.spec,
+                &command.weights,
+                &command.input,
+                &command.directory,
+                command.runtime,
+                locale,
+            ),
+            locale,
+        )
     } else {
-        usage_error()
+        usage_error(
+            &tr!(
+                locale,
+                "命令或参数不正确",
+                "Unknown command or incorrect arguments",
+                "コマンドまたは引数が正しくありません"
+            ),
+            locale,
+        )
     }
 }
