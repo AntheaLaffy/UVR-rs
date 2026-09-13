@@ -1,12 +1,32 @@
-# 开发约定
+# Contributing to UVR Rust
 
-先阅读 [任务](docs/tasks.md)、[工程基线](docs/baseline.md) 与 [先验知识](docs/prior-knowledge.md)，再按证据更新 [后验知识](docs/posterior-knowledge.md)。core 的可选 `burn-cpu` 提供 VR 网络与 PCM 任务，`audio-io` 提供文件编解码，CLI 默认启用两者。未实现能力不能作为可用 API 或界面功能展示。
+English · [简体中文](CONTRIBUTING.zh-CN.md) · [日本語](CONTRIBUTING.ja.md)
 
-`core/` 持有音频处理和推理逻辑；CLI 与 Tauri 宿主调用库，前端只负责交互。需要共享的参数与任务协议在出现真实实现需求后定义。
+Help us make local audio separation easier to use and its results easier to verify. Start with the [user guide](README.md) and [runtime reference](docs/runtime.md). Inference changes must preserve the documented audio semantics and quality thresholds; a faster kernel is useful when it improves a real task without breaking those guarantees.
 
-运行时不得依赖 Python。`tools/reference/` 的 Python／PyTorch 仅用于独立验证；应用构建、启动和音频处理不能调用该环境。参考工具依赖由自己的 `uv.lock` 固定，普通 Cargo 测试使用已保存的样本，不要求 Python。重新生成参考样本的方法见 [验证工具说明](tools/reference/README.md)。
+## Find the right layer
 
-## 本地检查
+| Location | Responsibility |
+| --- | --- |
+| `core/` | Audio decoding/DSP, original checkpoint loading, inference and file tasks |
+| `cli/` | Command parsing, environment compatibility, terminal progress and exit codes |
+| `gui/src/` | Desktop interaction, validation, preferences and progress display |
+| `gui/src-tauri/` | Native desktop commands, model management and task coordination |
+| `tools/reference/` | Independent reference generation and verification; never the product runtime |
+| `benchmarks/` | Reproducible correctness and performance experiments |
+| `upstream/`, `agent/deepseek-harness/` | Pinned references outside the product workspace |
+
+The Cargo workspace defaults to core and CLI so command-line development does not require desktop libraries. The pnpm workspace owns the GUI. Reference submodules are optional for ordinary builds; initialize them only for work requiring upstream sources, following [References](docs/references.md).
+
+Keep inference and audio behavior in core. CLI and desktop use `RuntimeOptions` and `separate_file_with_options`, including validation, effective scheduling parameters and a thread pool for each task. Expose an option only when the selected model/backend implements it. Avoid process-wide environment mutation: the CLI resolves its legacy environment overrides into explicit task options, while the desktop sends its selected settings.
+
+Core's `burn-cpu` feature enables inference and PCM tasks; `audio-io` adds codecs and file tasks. CLI enables both. `openvino` is optional and needs the native CPU runtime to be available. Python/PyTorch belongs only to independent verification: normal builds, application startup and separation must not call it. Fixed fixtures keep normal Cargo tests independent of that environment.
+
+## Check a change
+
+Use a Rust 2024 toolchain. For desktop work, also install Node.js 24, pnpm 12.1.0 and the [Tauri system prerequisites](https://v2.tauri.app/start/prerequisites/), then run `pnpm install --frozen-lockfile`.
+
+Run relevant checks while iterating and complete applicable workspace checks before handoff:
 
 ```sh
 cargo fmt --all -- --check
@@ -21,25 +41,47 @@ cargo run --locked -p uvr-cli -- --version
 git diff --check
 ```
 
-新 clone 先运行 `pnpm install --frozen-lockfile`。核心开发可以只检查 `cargo check --locked`；完整桌面检查需要安装系统依赖。普通 Cargo 测试覆盖文件摘要、UVR 标识、DSP／编解码对照、取消／输出保护与 CLI 失败场景。依赖大型权重的完整网络及音频验证另见 [探针说明](benchmarks/backend-probe/README.md)，不把缺少本地权重时的普通测试通过当作模型已验收。
-
-Cargo.lock 与 pnpm-lock.yaml 随应用提交。权重、客户音频、生成分轨和大型基准产物放在被忽略的目录；可共享的基准清单与结果摘要需记录输入校验和。
-
-桌面图标、界面 Logo 与 favicon 共用 `gui/src-tauri/icons/atri-v1/source.png`，避免更新后出现不同标志。图案按用户提供的 ATRI 图片设计，由内置 image_gen 生成；参考说明与完整提示词保存在同目录的 `generation.json`。源图是带不透明深紫背景的 PNG 位图。
-
-更新源图后，用 Tauri CLI 重新导出并同步前端资源。临时目录用于接收全平台产物，仓库只保留当前桌面应用需要的文件：
+For backend or runtime changes, also check the optional build:
 
 ```sh
-pnpm --filter @uvr/gui tauri icon src-tauri/icons/atri-v1/source.png --output /tmp/uvr-atri-icons
-cp /tmp/uvr-atri-icons/{32x32.png,64x64.png,128x128.png,128x128@2x.png,icon.png,icon.ico,icon.icns} gui/src-tauri/icons/atri-v1/
-cp /tmp/uvr-atri-icons/128x128.png gui/public/branding/uvr-atri.png
-cp /tmp/uvr-atri-icons/32x32.png gui/public/branding/uvr-atri-32.png
+cargo test --locked -p uvr-core -p uvr-cli --features uvr-core/openvino,uvr-cli/openvino
+cargo check --workspace --all-targets --locked --all-features
 ```
 
-## 知识记录
+Core-only development can start with `cargo check --locked`. Tests cover fingerprints, DSP/codecs, cancellation, output protection, runtime validation and CLI failures. Passing these checks without large local weights does **not** establish full-model acceptance. Use the [backend probes](benchmarks/backend-probe/README.md) and [independent verification tools](tools/reference/README.md) for model and waveform comparisons; state exactly what you ran and what remains unverified.
 
-- 客户要求与偏好直接标注为要求，不伪装成实验结论。
-- 未验证判断保留在先验文档，并给出验证方法。
-- 后验条目写明日期、代码版本、证据位置、结果与适用范围；修正结论时保留失效原因。
-- 性能结论必须对应 [性能协议](docs/performance.md)，不能把空壳构建耗时作为推理性能。
-- 提交说明解释动机、范围和验证限制；参考子模块更新需明确新的提交号与原因。
+For GUI changes, verify the native app as well as the browser preview. Exercise model/backend switching, validation, saved settings, cancellation and output handling when affected. A successful web build cannot establish native command or inference behavior.
+
+For Windows work, pair Linux development with build and runtime checks on a Windows collaborator's machine; Windows acceptance is still open. Compare release optimizations, CPU instruction targets, toolchains, backend settings and thread scheduling before attributing a speed difference to cross-compilation. `tools/build-native.mjs` is Linux-only; do not carry `target-cpu=native` from the build machine into a general Windows release.
+
+## Report a bug or propose a change
+
+A useful report identifies the user-visible problem and gives the shortest reproduction: application revision and build command, OS/CPU, model, actual runtime settings, input format/length, expected behavior and the relevant error or task log. For performance reports include input and weight hashes, timing boundaries and repeated measurements. Avoid attaching private audio or large weights; use a shareable synthetic reproduction when it demonstrates the same problem.
+
+Keep each change reviewable around one problem. Explain the reason, resulting behavior, important tradeoffs and validation limits in the PR description. Update CLI help, GUI controls and runtime documentation together when changing a shared option. Keep the English, Chinese and Japanese interface text and user documentation aligned; leave command names, paths and option values identical across translations. Check language switching and light/dark appearance when changing visible UI text or styles.
+
+Commit `Cargo.lock` and `pnpm-lock.yaml` with dependency changes. Keep original weights, user audio, generated stems and large benchmark artifacts in ignored directories. Share manifests and result summaries with input checksums. Reference-submodule updates must identify the new commit and why it is needed.
+
+## Preserve the evidence
+
+The research notes are currently mostly Chinese. Read [Scope](docs/tasks.md), [Baseline](docs/baseline.md) and [Prior knowledge](docs/prior-knowledge.md) before changing inference assumptions. Update [Validated findings](docs/posterior-knowledge.md) with the date, code revision, evidence location, result and applicable limits.
+
+- Record user requirements as requirements, not experimental findings.
+- Keep unverified judgments in prior-knowledge notes, with a verification method.
+- Follow the [performance protocol](docs/performance.md). Keep model, input, quality thresholds and timing boundaries comparable; local operator speedups or build times do not establish end-to-end inference gains.
+- Preserve failed or superseded findings and explain why they no longer apply. Do not widen quality tolerances to hide a regression.
+
+Use the [benchmark index](benchmarks/README.md) for detailed experiment history. The README should help a new user choose and run the product, rather than carry an experimental archive.
+
+## Shared branding assets
+
+Desktop icons, the app logo and favicon derive from the original `gui/src-tauri/icons/source.svg`, a light green waveform on a dark blue-green background. Keep this source as the shared identity so desktop and web assets remain consistent. Generated desktop icons live in `gui/src-tauri/icons/uvr/`; web assets are `gui/public/branding/uvr.png` and `uvr-32.png`.
+
+After editing the source, export through Tauri and copy only the platform assets used by this project:
+
+```sh
+pnpm --filter @uvr/gui tauri icon src-tauri/icons/source.svg --output /tmp/uvr-icons
+cp /tmp/uvr-icons/{32x32.png,64x64.png,128x128.png,128x128@2x.png,icon.png,icon.ico,icon.icns} gui/src-tauri/icons/uvr/
+cp /tmp/uvr-icons/128x128.png gui/public/branding/uvr.png
+cp /tmp/uvr-icons/32x32.png gui/public/branding/uvr-32.png
+```

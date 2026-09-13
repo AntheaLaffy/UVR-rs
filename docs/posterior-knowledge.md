@@ -194,6 +194,16 @@ CLI 可选 `openvino` 构建和 `--backend openvino-cpu` 已直接从原 `.ckpt`
 
 `pnpm build`、`cargo check --locked -p uvr-gui`、`pnpm gui:build` 与 `git diff --check` 通过，生成 `target/release/uvr-gui`。现有 `tools/reference/verify_gui.py --smoke-only` 在虚拟显示器中通过原生启动、四个模型选项与缺失输入恢复检查；[检查报告](../benchmarks/artifacts/gui-atri-logo-2026-09-12/native/report.json) 保存二进制摘要，[原生窗口截图](../benchmarks/artifacts/gui-atri-logo-2026-09-12/native/ready.png) 确认 48 像素 Logo 正常显示。本条验证范围为图标资源、桌面构建与窗口启动。
 
+## K026：前后端共享运行时配置与本机优化 GUI
+
+日期：2026-09-13。为使已测得的 CPU 优化能被普通用户直接使用，CLI 与 GUI 统一通过 core 的 `RuntimeOptions` 创建每任务线程池，显式传递 VR 窗口／批次／并发及 Burn 1296 注意力批量／布局。可用时 1296 默认选择 OpenVINO CPU，VR 采用 512 帧、批次 1、HP 并发 4；线程默认最多 8，DeEcho 和批处理 HP 显示实际生效的调度限制。运行时参数与环境变量优先级见三语[运行时指南](runtime.zh-CN.md)。
+
+`pnpm build:native` 已构建当前 CPU 的优化版 CLI 和 GUI，分别为 6,943,112 与 18,905,752 字节；可选 OpenVINO CPU 原生库单独计量，模型仍在外部。精确摘要与历史性能口径见[记录](../benchmarks/2026-09-13-runtime-summary.json)。程序恢复初始化提交 `06eaaea` 的 UVR 图标；中日英、系统／亮／暗色及三种主题均可在任务运行中切换并保存。
+
+完整 workspace 全特性测试、Clippy 严格检查、格式和前端构建通过。并行运行测试时发现原下载取消测试在连接前计时，繁忙机器可能提前取消并让本地服务器一直等待连接；改为收到响应、进入正文等待后开始取消计时，继续检验停滞下载的响应与原文件保护。浏览器验证覆盖运行时 9 组、外观 7 组、国际化 6 组，另以可信鼠标点击检验折叠高级参数的 6 组原生表单校验。
+
+最终 GUI 在 `PATH=/nonexistent` 下直接加载原权重，1296 的 3 秒真实片段经 OpenVINO CPU／8 线程通过双轨波形、拒绝覆盖和取消清理；取消约 0.456 秒。[报告](../benchmarks/artifacts/gui-runtime-2026-09-13-1296/report.json) 保留二进制和波形摘要。5-HP 的 10 秒真实片段经 Burn／8 线程也通过同样检查；取消等待当前窗口组，约 30.306 秒，见[报告](../benchmarks/artifacts/gui-runtime-2026-09-13-5hp/report.json)。这些是功能与正确性运行，不替代独立性能复测、全部模型／整曲验收或 Windows 实机音频验证。
+
 ## 后续条目格式
 
 记录编号、日期、问题、参考版本／权重校验和、执行命令、输入与参数、结果、产物位置、适用范围及仍未解决的问题。性能实验同步链接 [性能文档](performance.md)，避免复制两套数值。

@@ -1,84 +1,108 @@
 # UVR Rust
 
-面向指定 UVR 模型的本地音频分离项目，目标是提取伴奏、分离主唱与和声、去除回声与混响。
+English · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 
-CLI 已接通 1296、5-HP、6-HP、DeEcho 四套模型，并通过真实片段的独立波形对照。桌面单模型界面已接入共享 core，正在验证原生交互；跨窗、多模型处理链、音质和端到端性能仍在验收中。推理由 Rust 执行，GUI 使用 Tauri + TypeScript；运行时不依赖 Python，独立验证工具可以使用 Python。
+**VR separation at about 3× the CPU speed of the Python reference, with a 6.94 MB native CLI.**
 
-## Workspace
+A focused alternative for UVR users who want faster CPU processing and a smaller application. UVR Rust loads original UVR weights directly, with a desktop app and a scriptable CLI. It does not need to carry Python or PyTorch to process audio.
 
-| 路径 | 职责 |
+| What matters | UVR Rust |
 | --- | --- |
-| `core/` | `uvr-core`，CLI 与 GUI 共用的 Rust 库 |
-| `cli/` | `uvr-cli` 包，生成 `uvr` 命令 |
-| `gui/` | `@uvr/gui`，TypeScript + Vite 前端 |
-| `gui/src-tauri/` | `uvr-gui`，Tauri Rust 宿主 |
-| `upstream/` | 固定版本的 UVR 参考子模块 |
-| `agent/deepseek-harness/` | 固定版本的未来 AI 集成参考，保留独立 workspace |
+| VR CPU inference | RTF ≈2 versus ≈6 for the Python comparison: about 3× faster |
+| Current native executable sizes | CLI 6.94 MB; desktop app 18.91 MB, excluding weights and optional libraries |
+| Optional 1296 acceleration libraries | OpenVINO adds 86.80 MB; CLI + libraries 93.74 MB, GUI + libraries 105.71 MB |
+| Original weights | Direct `.pth` / `.ckpt` loading; no conversion |
+| Daily workflow | Local processing, GUI and CLI, progress, cancellation and output protection |
 
-根 Cargo workspace 管理三个 Rust 包，默认构建 core 与 CLI，避免命令行开发依赖桌面系统库。根 pnpm workspace 管理 GUI；参考子模块不参与本项目构建。
+Speed compares recorded local 5-HP configurations with different clips and thread counts; it is not a comparison at equal resources. RTF 2 means roughly 20 seconds of processing per 10 seconds of audio. Sizes describe the September 13 Linux native release with symbols stripped; all totals exclude model weights and system libraries. The GUI already includes inference and does not require the CLI file. See the [performance and size evidence](docs/performance-summary.md) for exact bytes, hashes, historical builds and measurement conditions.
 
-## 使用与开发
+## Choose a model
+
+| You want to… | Model / CLI key | Original weight file | Output tracks |
+| --- | --- | --- | --- |
+| Separate vocals and accompaniment | BS-RoFormer 1296 / `1296` | `model_bs_roformer_ep_368_sdr_12.9628.ckpt` | `vocals`, `instrumental` |
+| Try Karaoke separation | 5-HP / `5hp` | `5_HP-Karaoke-UVR.pth` | `primary`, `residual` |
+| Compare a second Karaoke model | 6-HP / `6hp` | `6_HP-Karaoke-UVR.pth` | `primary`, `residual` |
+| Reduce echo and reverb | DeEcho / `deecho` | `UVR-DeEcho-DeReverb.pth` | `primary`, `residual` |
+
+For Karaoke and DeEcho, `primary` is the model output and `residual` comes from the complementary mask. Audition both tracks on your material; these labels do not promise a perfect lead/backing-vocal or dry/reverb split. Weights are downloaded separately, not bundled with the app. Sources and exact filenames are recorded in the [model manifest](references/targets.json).
+
+Single-model CLI and desktop processing are implemented. Automatic multi-model chains, broader platform coverage and full-song quality/performance acceptance remain in progress. The interface and user documentation support English, Simplified Chinese and Japanese. This project supports the four listed checkpoints, rather than the entire UVR model catalog.
+
+## Use it
+
+### Desktop
+
+Launch `uvr-gui`, select an input file and model, then choose model and output directories. The model manager checks existing weights and can download missing models from the offered sources. Once weights are ready, separation works offline.
+
+Inference runtime settings expose the available backend and thread count; advanced settings expose the applicable window, batch and layout controls. Settings are remembered locally, with a reset to the recommendations for the selected model. The task log records effective settings so you can reproduce a run in the CLI. Both entry points use the same Rust inference implementation and parameter rules.
+
+Choose English, Simplified Chinese or Japanese, follow the system's light/dark mode or set your own, and select an accent color. Language and appearance preferences are saved locally.
+
+### Command line
+
+After the standard build below, run from the repository root:
 
 ```sh
-cargo run -p uvr-cli -- --help
-cargo run --locked -p uvr-cli -- inspect-weights models/5_HP-Karaoke-UVR.pth
-cargo run --release --locked -p uvr-cli -- inspect-audio input.mp3
-cargo run --release --locked -p uvr-cli -- separate-1296 models/model_bs_roformer_ep_368_sdr_12.9628.ckpt input.wav outputs/1296
-cargo run --release --locked -p uvr-cli -- separate-vr deecho models/UVR-DeEcho-DeReverb.pth input.wav outputs/deecho
-pnpm gui:dev
+./target/release/uvr --lang en separate-1296 \
+  models/model_bs_roformer_ep_368_sdr_12.9628.ckpt input.wav outputs/1296
+
+./target/release/uvr --lang en separate-vr deecho \
+  models/UVR-DeEcho-DeReverb.pth input.wav outputs/deecho
+
+./target/release/uvr --lang en --help
 ```
 
-`inspect-weights` 输出文件字节数、整文件 SHA-256 和 UVR 元数据查询用的 MD5 标识，供实验清单记录。MD5 按参考程序只覆盖末尾 10,240,000 字节（短文件覆盖全部），不能替代整文件校验。命令不反序列化权重，也不确认模型来源、张量结构或推理可用性；空文件同样可以计算摘要。检查期间请勿修改文件。读取失败返回 1，用法错误返回 2。
+Use `target/native/release/uvr` instead after the native build. `--threads` works with both model families; VR exposes `--window-frames`, `--inference-batch` and `--parallel-windows`. 1296 also exposes `--backend`, and its Burn path supports attention batch sizes, window parallelism and linear layout. See the [complete option reference and examples](docs/runtime.md).
 
-`inspect-audio` 解码 WAV、FLAC 或 MP3，报告原始声道、采样率及有效采样数。`separate-vr` 接受 `5hp`、`6hp`、`deecho`，保存 `<输入名>_<模型>_primary.wav` 与 `residual.wav`；前者为模型主输出，后者为互补掩码重建。两轨都是 44.1 kHz 双声道浮点 WAV，单声道复制为双声道，不归一化或削波。Karaoke 在混音与独立人声上的音轨语义、实际效果仍需分别验证。
+Put `--lang en`, `--lang ja` or `--lang zh-CN` before the command, or set `UVR_LANG`; explicit selection wins. The default remains Chinese. Machine-readable stdout field names stay the same across languages, and underlying technical errors retain their original text.
 
-当前预设是 FP32、窗口 512 帧、TTA／额外掩码后处理关闭。可用 `--window-frames` 调整窗口，须为 16 的倍数、大于双侧上下文总长且不超过 2048；默认使用 2 个 CPU 线程，可通过 `RAYON_NUM_THREADS` 设置。Ctrl-C 在阶段及窗口之间取消，推理窗口内部暂不支持即时中断。已有输出返回错误；两轨先完成临时编码再发布，若第二轨发布失败会明确报告已保存的第一轨。
+Inputs: mono/stereo WAV, FLAC and MP3. Outputs: two 44.1 kHz stereo, 32-bit float WAVs named `<input>_<model>_<track>.wav`, without normalization or clipping. Mono becomes stereo and other sample rates are resampled. Existing outputs are preserved. Cancel with Ctrl-C or the desktop cancel button; latency depends on the active computation. CLI exit codes: `0` success, `1` processing failure, `2` invalid arguments, `130` cancellation.
 
-### VR Burn CPU 性能存档
+`inspect-audio <file>` reports decoded audio properties. `inspect-weights <file>` reports size, SHA-256 and the UVR metadata MD5; computing a fingerprint alone does not establish model support.
 
-当前保存的 VR 性能候选针对本机 native 构建：`TILE_BATCH=512`、HP 窗口并发 4、`RAYON_NUM_THREADS=8`，Winograd 使用直接 GEMM、列主序权重、forward 内 scratch 复用，以及 tile 坐标和 product 偏移预计算。它们的共同目的，是减少 Burn 张量包装、重复分配和缓存搬运；这些改动保留是因为曾在完整 5-HP 音频任务中给出端到端收益，而不是只改善局部算子计时。
+## Build and install
 
-复现实验（10 秒、4 窗口、5-HP）可以使用：
+Development builds are available through [GitHub Actions](https://github.com/AntheaLaffy/UVR-rs/actions/workflows/build.yml), triggered by pushes, pull requests or manual runs. Download artifacts from a successful run: Linux CLI/GUI binaries and optional OpenVINO CPU libraries are packaged separately. Windows uses native Burn builds, with real-device audio acceptance still pending. These are workflow artifacts, not GitHub Releases.
 
-```sh
-RUSTFLAGS='-C target-cpu=native' \
-CARGO_TARGET_DIR=/tmp/uvr-native \
-cargo build --release --locked --manifest-path benchmarks/backend-probe/Cargo.toml --bin probe-vr-audio
+Linux x86_64 is the first validated platform. Install a Rust toolchain supporting edition 2024. Desktop builds also need Node.js 24, pnpm 12.1.0 and the [Tauri system prerequisites](https://v2.tauri.app/start/prerequisites/). Reference submodules and Python are not required for normal builds or inference.
 
-env PATH=/nonexistent RAYON_NUM_THREADS=8 \
-/tmp/uvr-native/release/probe-vr-audio \
-  --measure --runs 7 --case local_audio --parallel-windows 4 \
-  models/5_HP-Karaoke-UVR.pth \
-  benchmarks/artifacts/2026-09-13-vr-hpc/5hp-long10 \
-  /tmp/vr-archive-measure.json
-```
+Windows remains unverified. Linux development can proceed alongside a collaborator building and testing on Windows. Cross-compilation does not inherently make inference slower: release optimizations, the destination CPU's supported instructions, toolchain and runtime configuration matter. For other computers, use a compatible CPU target; the native build helper below supports Linux only.
 
-本次归档版本的 5 个 warm 样本为 `RTF 1.992/1.981/1.991/2.052/2.008`，中位数 `1.992`；单次结果曾越过 `RTF <= 2.0`，但完整 7-run 的历史样本也出现过 `2.023` 中位数，因此不能把它描述为所有机器、所有运行都稳定达到 1:2。每次双轨质量检查通过，最大绝对误差 `7.15e-7`、RMSE 约 `3.6e-8`。构建和实验细节见 [VR CPU 优化实验](benchmarks/2026-09-11-vr-cpu-optimization.md) 与 [性能协议](docs/performance.md)；RoFormer 1296 网络不属于这份 VR 存档。
+### Recommended build for this CPU
 
-`separate-1296` 使用 8 秒窗口、重叠数 4、float64 正向频谱与 FP32 网络，输出 `_1296_vocals.wav` 和 `_1296_instrumental.wav`；支持窗内取消。短音频按完整 hop 补齐后裁回精确长度，伴奏为重采样后的输入减人声。精度选择与验证证据见 [1296 数值记录](benchmarks/2026-09-11-roformer-numerics.md)。
-
-CLI 和 GUI 使用 core 的 `file_task` 接口，直接读取已核验的原始 `.pth`／`.ckpt`，无需 Python 转换。`VrSeparator`／`RoformerModel` 接受 PCM，文件入口使用 Symphonia 解码、Hound 编码；core 的无特性构建仍可独立使用 DSP／权重检查。参考、预设及验收预算由 [工程基线](docs/baseline.md) 固定；VR 完整 PCM 对照见 [音频记录](benchmarks/2026-09-10-vr-cpu-audio.md)。
-
-开发环境需要支持 Rust 2024 edition 的 Rust 工具链、Node.js 24 与 pnpm 12.1.0。桌面开发另需 [Tauri 系统依赖](https://v2.tauri.app/start/prerequisites/)。初始化实际验证环境见 [后验知识](docs/posterior-knowledge.md)。
+From the repository root, provide an OpenVINO CPU native-library directory as described in the [runtime guide](docs/runtime.md), then build both entry points:
 
 ```sh
 pnpm install --frozen-lockfile
-cargo check --locked
-pnpm build
-cargo check --workspace --all-targets --locked
+UVR_OPENVINO_LIB_DIR=/path/to/openvino/lib pnpm build:native
+./target/native/release/uvr-gui
 ```
 
-`pnpm build` 只构建网页；`pnpm gui:build` 构建桌面程序。当前关闭安装包打包，发布标识与安装包留待发布阶段配置。GUI 已使用 ATRI 风格 Logo，源图与重新导出方式见 [开发约定](CONTRIBUTING.md)。
+`pnpm gui:build:native` is an alias for the same build. Outputs are `target/native/release/uvr`, `uvr-gui`, and the adjacent `lib/` directory; keep them together. 1296 defaults to OpenVINO CPU when available, otherwise Burn. VR uses Burn. The default thread budget is the smaller of eight and the available logical CPU count.
 
-阅读上游时按需执行 `git submodule update --init`；普通构建不要求下载参考仓库。来源、版本及恢复方法见 [参考资料](docs/references.md)。
+This build uses `target-cpu=native` for the current Linux x86_64 CPU. It is not a portable release for arbitrary computers. If you only need Burn, run `pnpm build:native --burn-only`; its CLI and GUI go into `target/native-burn/release/`, independently of the OpenVINO build, and require no OpenVINO libraries.
 
-## 实现前文档
+### Standard builds
 
-- [任务](docs/tasks.md)：范围、阶段与验收条件。
-- [工程基线](docs/baseline.md)：已决定的参考版本、运行边界、音频参数与验收门限。
-- [先验知识](docs/prior-knowledge.md)：客户反馈、假设与尚未决定的问题。
-- [推理先验方案](docs/inference-priors.md)：算法清单、网络架构、技术栈候选与验证顺序。
-- [框架与专用实现先验](docs/backend-priors.md)：Burn、Candle、ONNX 路线与局部手写算子的比较。
-- [后验知识](docs/posterior-knowledge.md)：源码证据与实际验证结果。
-- [性能](docs/performance.md)：基准设计、指标与记录规范。
-- [开发约定](CONTRIBUTING.md)：检查命令与知识更新方式。
+For a CLI build without desktop dependencies or host-specific CPU instructions:
+
+```sh
+cargo build --release --locked -p uvr-cli
+```
+
+For a desktop build using the standard target configuration:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm gui:build
+./target/release/uvr-gui
+```
+
+These builds use Burn by default. `pnpm build` builds only the web frontend; local audio processing requires the desktop host. Installer bundles are not enabled yet. For development, use `pnpm gui:dev`.
+
+## Contribute and explore
+
+Start with [Contributing](CONTRIBUTING.md) for architecture, checks, bug reports and evidence requirements. The [runtime guide](docs/runtime.md) explains settings and deployment; [benchmark records](benchmarks/README.md) preserve measured results and remaining limitations.
+
+Most research notes are currently in Chinese: [scope and acceptance](docs/tasks.md), [engineering baseline](docs/baseline.md), [performance protocol](docs/performance.md), [validated findings](docs/posterior-knowledge.md), and [upstream references](docs/references.md). UVR Rust builds on the referenced model and algorithm work.

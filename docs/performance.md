@@ -99,7 +99,7 @@ GPU 计时必须同步或使用设备计时事件，避免只测到异步提交�
 
 在同一观测区间可用 `平均占用的逻辑 CPU 数 ≈ Δ(user + sys) / Δwall` 交叉检查；若按整机归一化，再除以逻辑 CPU 总数并乘 100%。CPU 时间也包含自旋和硬件停顿，不能将这个数当成有效计算量。逐核图还可能因线程迁移而呈现“每个核都不太忙”，必须同时看逐线程增量及实际同时执行的线程数；创建了很多线程不等于展开了计算并行。
 
-当前 [CLI](../cli/src/audio.rs) 与 [GUI](../gui/src-tauri/src/main.rs) 默认将 Rayon 计算池设为 2 个线程，`RAYON_NUM_THREADS` 可覆盖。遇到低整机占用，优先核对本次进程的实际配置。另查可用 CPU 集合、亲和性和容器／cgroup 配额；例如 CPU 可见数量很多但配额只允许两个 CPU 时间份额，也会限制占用。Linux 可从 `/proc/<PID>/status` 的 `Cpus_allowed_list` 及所属 cgroup 的 `cpu.max`、`cpu.stat`（v2）核查，节流次数／时间应取观测区间增量。固定两线程只是对照条件，最终配置须实测选择。
+当前 [CLI](../cli/src/audio.rs) 与 [GUI](../gui/src-tauri/src/tasks.rs) 使用共享参数与每任务 Rayon 线程池，线程默认值为可用 CPU 数与 8 的较小值；CLI 的 `--threads` 和 GUI 控件可覆盖，`RAYON_NUM_THREADS` 保留初始值兼容。具体优先级见[运行时指南](runtime.zh-CN.md)。遇到低整机占用，优先核对任务记录中的实际配置，再查可用 CPU 集合、亲和性和容器／cgroup 配额。Linux 可从 `/proc/<PID>/status` 的 `Cpus_allowed_list` 及所属 cgroup 的 `cpu.max`、`cpu.stat`（v2）核查，节流次数／时间应取观测区间增量。旧的两线程配置用于历史固定资源对照，不限制产品的最佳配置。
 
 ### 按证据区分限制来源
 

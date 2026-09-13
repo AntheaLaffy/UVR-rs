@@ -1,0 +1,145 @@
+{
+  "date": "2026-09-13",
+  "hardware": "Intel Core i5-13420H, Linux x86_64",
+  "metric": "warm complete PCM separation time / audio duration; excludes checkpoint loading and file decoding/encoding",
+  "comparison": "observed local configurations, not matched-input or matched-thread benchmarking",
+  "rust": {
+    "model": "5-HP",
+    "source": "/tmp/vr-archive-measure.json",
+    "source_sha256": "571688cdeefcefce9d1b0cbdaa64a63725a9893e56d87d4168523b2286a170c1",
+    "audio_seconds": 10,
+    "threads": 8,
+    "window_frames": 512,
+    "inference_batch": 1,
+    "parallel_windows": 4,
+    "build": "release, target-cpu=native",
+    "warm_rtf": [
+      1.9917336706,
+      1.980575928,
+      1.9911814271,
+      2.051932045,
+      2.0082203239
+    ],
+    "median_rtf": 1.9917336706,
+    "all_waveform_checks_passed": true
+  },
+  "python": {
+    "model": "5-HP, fixed upstream reference",
+    "source": "benchmarks/artifacts/2026-09-11-vr-fused-norm/5hp-pcm-reference.json",
+    "source_sha256": "fb63770c4b9d1f460d943513e55b8de427c325ab86eade5c88994b54bdfe2ff0",
+    "audio_seconds": 3,
+    "threads": 2,
+    "window_frames": 512,
+    "inference_batch": 1,
+    "parallel_windows": 1,
+    "warm_rtf": [
+      6.2679821570006125,
+      5.932286806666525,
+      6.05205706766598,
+      6.0809437553337675,
+      6.110641305333654
+    ],
+    "median_rtf": 6.0809437553337675
+  },
+  "existing_release_executables": {
+    "scope": "Existing September 12 Linux release binaries, before the current UI/runtime update. Excludes weights, OS libraries and optional OpenVINO libraries. MB = 1000000 bytes.",
+    "cli": {
+      "path": "target/release/uvr",
+      "bytes": 9122024,
+      "sha256": "2d46c3214a39eaad8fb342f7d0206ff8b07928da2c7ee5f3c8dc1b0dbcb72ed6"
+    },
+    "gui": {
+      "path": "target/release/uvr-gui",
+      "bytes": 25811240,
+      "sha256": "c06a1825891d4c322112f39096b11d6e3da96b9ab30ac48c4d6c20366a519931"
+    }
+  },
+  "current_native_build": {
+    "source": "target/native/release/build-info.json",
+    "source_sha256": "2d7470753c9acc8e56f56a8ef16239f10d264dad1788ff201c160a3153cecb60",
+    "scope": "September 13 Linux native release with OpenVINO feature and stripped symbols. Executable sizes exclude model weights, system libraries and the separately listed optional native libraries. MB = 1000000 bytes.",
+    "builtAt": "2026-09-13T10:06:28.617Z",
+    "platform": "linux",
+    "architecture": "x64",
+    "cpu": "13th Gen Intel(R) Core(TM) i5-13420H",
+    "rustflags": "-C target-cpu=native",
+    "strip": "symbols",
+    "openvino": true,
+    "artifacts": [
+      {
+        "name": "uvr",
+        "bytes": 6943112,
+        "sha256": "159a996d7a12db5718cce79f05bde722cee8b786836cd7f1ba2fb1b14769524c"
+      },
+      {
+        "name": "uvr-gui",
+        "bytes": 18905752,
+        "sha256": "8a674bfd0243a81ddd94702a2cd1f664a275043bf108ac0a506616c86ccc7fdc"
+      }
+    ],
+    "optional_runtime_libraries": {
+      "directory": "target/native/release/lib",
+      "bytes": 86800978,
+      "file_count": 10,
+      "accounting": "Sum of the staged file lengths, including copied aliases; no compression or filesystem block rounding.",
+      "files": [
+        {
+          "name": "libhwloc.so.15",
+          "bytes": 471657,
+          "sha256": "57f2f1875fb301ad493bff365cb355220a8cb28bb75d76c5584c411811906b4f"
+        },
+        {
+          "name": "libopenvino.so.2631",
+          "bytes": 20149329,
+          "sha256": "aeb9fa2dc9f8627a73f4b84f3e051b5efd76fb009ad489b0878de230e15ddb1c"
+        },
+        {
+          "name": "libopenvino_c.so",
+          "bytes": 359553,
+          "sha256": "86155e0d5fb1c3a40d0122b3819c7da47269029d107adb5e88595be6b455e4bd"
+        },
+        {
+          "name": "libopenvino_c.so.2631",
+          "bytes": 359553,
+          "sha256": "86155e0d5fb1c3a40d0122b3819c7da47269029d107adb5e88595be6b455e4bd"
+        },
+        {
+          "name": "libopenvino_intel_cpu_plugin.so",
+          "bytes": 64276761,
+          "sha256": "dd267e8a7b13e1db47f053b7fd235d08bfcf53ddc2c434ccdb90bdde60f3fc05"
+        },
+        {
+          "name": "libopenvino_ir_frontend.so.2631",
+          "bytes": 600273,
+          "sha256": "773d6b5977b6f8533e4cdfcac2f41e4d9e4bbdd00bc0954694bd4100a0ac5eec"
+        },
+        {
+          "name": "libtbb.so.12",
+          "bytes": 367649,
+          "sha256": "6781dc6aa8b2ca237d0164258e70266a44667756c02a9a039782ec1d1a67b653"
+        },
+        {
+          "name": "libtbbbind_2_5.so.3",
+          "bytes": 31361,
+          "sha256": "baec0c4299339170eb55ae905b57efc5b89a1e10f8780fb9e9e27acb5446f341"
+        },
+        {
+          "name": "libtbbmalloc.so.2",
+          "bytes": 158129,
+          "sha256": "d7166b1e54c17d8f25be63e22fc2366bbe7b1b8cc3a7ea629dea59caeba9c020"
+        },
+        {
+          "name": "libtbbmalloc_proxy.so.2",
+          "bytes": 26713,
+          "sha256": "ee6b319fd28005147b40a6d5a152218998ea6eda54e13f7e8e72ca462ce6797a"
+        }
+      ]
+    },
+    "payload_totals": {
+      "scope": "Executable plus staged optional runtime libraries; excludes model weights, OS libraries and metadata files. GUI includes inference and does not require the CLI executable.",
+      "cli_with_openvino_bytes": 93744090,
+      "gui_with_openvino_bytes": 105706730,
+      "both_executables_with_openvino_bytes": 112649842
+    }
+  }
+}
