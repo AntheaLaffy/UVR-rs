@@ -18,8 +18,8 @@ mkdirSync(join(root, "target"), { recursive: true });
 const temporary = mkdtempSync(join(root, "target", "ci-package-"));
 const openvinoVersion = "2026.3.1";
 
-function run(command, args) {
-  const result = spawnSync(command, args, { cwd: root, stdio: "inherit" });
+function run(command, args, cwd = root) {
+  const result = spawnSync(command, args, { cwd, stdio: "inherit" });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} exited with ${result.status}`);
 }
@@ -41,7 +41,9 @@ function archive(stage, name, category, manifestName = "SHA256SUMS") {
   const archivePath = join(destination, filename);
   if (existsSync(archivePath)) throw new Error(`Refusing to replace an existing artifact: ${archivePath}`);
   // Tar keeps Linux executable modes intact inside the Actions artifact ZIP.
-  run("tar", ["-czf", archivePath, "-C", dirname(stage), "UVR"]);
+  // Use a relative output name from the destination directory. Git Bash's tar
+  // treats a Windows drive-letter path (for example D:/...) as a remote host.
+  run("tar", ["-czf", filename, "-C", dirname(stage), "UVR"], destination);
   writeFileSync(join(destination, "SHA256SUMS"), `${digest(archivePath)}  ${filename}\n`);
   console.log(`Created ${archivePath}`);
 }
