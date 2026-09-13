@@ -85,7 +85,7 @@ The measured native build uses release optimization and `-C target-cpu=native`, 
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm build:native
+make
 target/native/release/uvr-gui
 ```
 
@@ -103,7 +103,7 @@ The Burn-only build writes to `target/native-burn/release/`, separate from `targ
 
 The current OpenVINO-enabled native build has a 6.94 MB CLI and 18.91 MB GUI; the optional OpenVINO library directory adds 86.80 MB. GUI plus those libraries totals 105.71 MB, excluding model weights and OS libraries. Exact byte counts, hashes and historical measurements are in the [size evidence](performance-summary.md).
 
-`pnpm gui:build:native` is an alias for the same build. A native executable targets the build machine's CPU features: use the ordinary `pnpm gui:build` / `cargo build --release --locked -p uvr-cli` commands for a generic build intended for other CPUs. Neither build mode bundles model weights.
+`make` is the short local entry point for `pnpm build:native`; `make native-burn` selects the independent Burn-only output. A native executable targets the build machine's CPU features: use the ordinary `pnpm gui:build` / `cargo build --release --locked -p uvr-cli` commands for a generic build intended for other CPUs. Neither build mode bundles model weights.
 
 Cross-compiling Windows binaries does not inherently reduce inference speed. Release optimization, target CPU instructions, toolchain and Windows scheduling determine the result. The native helper here is Linux-only; building and testing Windows on a Windows machine is a practical way to validate the platform before release. Do not apply one developer's `target-cpu=native` settings to an untested distribution for other CPUs.
 

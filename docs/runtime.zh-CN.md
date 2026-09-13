@@ -85,7 +85,7 @@ GUI 使用有效的 `RAYON_NUM_THREADS` 作为初始线程设置，已保存或�
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm build:native
+make
 target/native/release/uvr-gui
 ```
 
@@ -103,7 +103,7 @@ Burn-only 产物位于 `target/native-burn/release/`，与 `target/native/releas
 
 本次启用 OpenVINO 的 native 构建中，CLI 为 6.94 MB、GUI 为 18.91 MB，可选 OpenVINO 库目录另加 86.80 MB；GUI 与这些库合计 105.71 MB，不含模型权重和系统库。准确字节数、摘要及历史构建见[体积证据](performance-summary.zh-CN.md)。
 
-`pnpm gui:build:native` 是同一构建入口的别名。本机产物使用构建时 CPU 的指令集；面向其他 CPU 时，使用普通 `pnpm gui:build` / `cargo build --release --locked -p uvr-cli` 生成通用构建。两种方式都不捆绑模型权重。
+`make` 是本机构建的简短入口，底层调用 `pnpm build:native`；`make native-burn` 生成独立的 Burn-only 产物。本机产物使用构建时 CPU 的指令集；面向其他 CPU 时，使用普通 `pnpm gui:build` / `cargo build --release --locked -p uvr-cli` 生成通用构建。两种方式都不捆绑模型权重。
 
 交叉编译 Windows 本身不会导致推理变慢，性能取决于 release 优化、目标 CPU 指令集、工具链和 Windows 调度。当前 native 脚本仅支持 Linux；由 Windows 用户本机构建并完成实际推理验证，是发布前核验该平台的可行分工。面向其他电脑的发布包不要直接套用开发者的 `target-cpu=native` 配置。
 

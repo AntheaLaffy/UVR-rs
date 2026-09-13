@@ -82,7 +82,7 @@ GUIは有効な`RAYON_NUM_THREADS`を初期スレッド数に使いますが、�
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm build:native
+make
 target/native/release/uvr-gui
 ```
 
@@ -98,7 +98,7 @@ target/native-burn/release/uvr-gui
 
 今回のOpenVINO対応nativeビルドはCLIが6.94 MB、GUIが18.91 MBで、追加のOpenVINOライブラリは別途86.80 MBです。GUIとライブラリの合計は105.71 MBで、モデルとOSライブラリを含みません。正確なバイト数、ハッシュ、過去のビルドは[サイズの記録](performance-summary.ja.md)を参照してください。
 
-`pnpm gui:build:native`も同じビルドの別名です。実行時にPythonや変換スクリプトは不要です。OpenVINO版を移動するときは`lib/`も一緒に移動してください。モデルの重みは別途必要です。
+`make` は同じビルドの短い入口で、内部では `pnpm build:native` を実行します。`make native-burn` は独立した Burn-only 版を生成します。実行時にPythonや変換スクリプトは不要です。OpenVINO版を移動するときは`lib/`も一緒に移動してください。モデルの重みは別途必要です。
 
 `target-cpu=native`はビルドしたCPU向けです。他のCPUへ配布する汎用版には`pnpm gui:build`または`cargo build --release --locked -p uvr-cli`を使います。クロスコンパイル自体が推論を遅くするわけではありませんが、Windowsのツールチェーン・CPU命令・スケジューリングは実機で検証する必要があります。現在のネイティブビルドスクリプトはLinux専用で、Windows版はWindows環境でビルド・テストしてから配布してください。
 

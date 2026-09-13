@@ -63,43 +63,14 @@ CLI 与桌面已支持单模型处理；自动多模型处理链、更多平台�
 
 ## 构建与安装
 
-可通过 [GitHub Actions](https://github.com/AntheaLaffy/UVR-rs/actions/workflows/build.yml)获取开发构建，由 push、PR 或手动运行触发。从成功的工作流下载产物：Linux CLI／GUI 主包与可选 OpenVINO CPU 库分别提供。Windows 使用本机 Burn 构建，尚待实机音频验收。这些是工作流产物，不是 GitHub Release。
-
-首个验证平台为 Linux x86_64。需要支持 Rust 2024 edition 的工具链；桌面构建另需 Node.js 24、pnpm 12.1.0 和 [Tauri 系统依赖](https://v2.tauri.app/start/prerequisites/)。普通构建和推理不需要参考子模块或 Python。
-
-Windows 尚未验证，可以在 Linux 上继续开发，同时由 Windows 协作者本机编译与测试。交叉编译本身不会让推理变慢，性能取决于 release 优化、目标 CPU 支持的指令、工具链和运行时配置。给其他电脑使用时选择兼容的 CPU 目标；下方本机构建脚本仅支持 Linux。
-
-### 推荐的本机 CPU 构建
-
-按[运行时指南](docs/runtime.zh-CN.md)准备 OpenVINO CPU 原生库目录，然后在仓库根目录构建两个入口：
+在 Linux x86_64 上构建本机优化版本前，请先阅读[运行时指南](docs/runtime.zh-CN.md)准备依赖，然后运行：
 
 ```sh
 pnpm install --frozen-lockfile
-UVR_OPENVINO_LIB_DIR=/path/to/openvino/lib pnpm build:native
-./target/native/release/uvr-gui
+make
 ```
 
-`pnpm gui:build:native` 是同一个构建的别名。产物为 `target/native/release/uvr`、`uvr-gui` 及旁边的 `lib/` 目录，移动时请放在一起。1296 在 OpenVINO CPU 可用时默认采用它，否则使用 Burn；VR 使用 Burn。默认线程数为可用逻辑 CPU 数与 8 中的较小值。
-
-此构建使用 `target-cpu=native`，面向当前 Linux x86_64 CPU，不能当作任意电脑可用的通用发行版。只需要 Burn 时可运行 `pnpm build:native --burn-only`，CLI 与 GUI 输出到独立的 `target/native-burn/release/`，与 OpenVINO 构建分开，无需 OpenVINO 原生库。
-
-### 通用构建
-
-只构建 CLI，不需要桌面依赖，也不启用本机专属 CPU 指令：
-
-```sh
-cargo build --release --locked -p uvr-cli
-```
-
-按标准目标配置构建桌面应用：
-
-```sh
-pnpm install --frozen-lockfile
-pnpm gui:build
-./target/release/uvr-gui
-```
-
-以上构建默认使用 Burn。`pnpm build` 只生成网页资源，处理本地音频需要桌面宿主。目前尚未启用安装包打包。开发时使用 `pnpm gui:dev`。
+优化产物位于 `target/native/release/`；启用 OpenVINO 时移动程序请保留旁边的 `lib/`。只使用 Burn 时运行 `make native-burn`。通用构建、Windows、CI 产物和依赖细节见[运行时指南](docs/runtime.zh-CN.md)。开发构建也可从 [GitHub Actions](https://github.com/AntheaLaffy/UVR-rs/actions/workflows/build.yml)获取。
 
 ## 参与与深入了解
 

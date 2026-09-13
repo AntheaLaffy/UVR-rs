@@ -63,43 +63,14 @@ Karaoke と DeEcho の `primary` はモデルの主出力、`residual` は補完
 
 ## ビルドとインストール
 
-開発ビルドは [GitHub Actions](https://github.com/AntheaLaffy/UVR-rs/actions/workflows/build.yml)から取得できます。push、PR、手動実行で起動し、成功した実行の成果物をダウンロードします。Linux の CLI／GUI と追加の OpenVINO CPU ライブラリは別々のパッケージです。Windows はネイティブの Burn ビルドで、実機での音声の受け入れ検証は未完了です。これらはワークフローの成果物であり、GitHub Release ではありません。
-
-最初の検証対象は Linux x86_64 です。Rust 2024 edition に対応したツールチェーンが必要です。デスクトップには Node.js 24、pnpm 12.1.0、[Tauri のシステム依存関係](https://v2.tauri.app/start/prerequisites/)も必要です。通常のビルドと推論に参照用サブモジュールや Python は不要です。
-
-Windows は未検証です。Linux での開発と、協力者による Windows 上のビルド・テストを並行して進められます。クロスコンパイル自体が推論を遅くするわけではなく、release 最適化、実行先 CPU の命令セット、ツールチェーン、ランタイム設定が影響します。別の PC 向けには互換性のある CPU ターゲットを選んでください。以下のネイティブビルド用スクリプトは Linux 専用です。
-
-### この CPU 向けの推奨ビルド
-
-[ランタイムガイド](docs/runtime.ja.md)に従って OpenVINO CPU のネイティブライブラリを用意し、リポジトリのルートで実行します。
+Linux x86_64 で最適化ビルドを作る場合は、まず[ランタイムガイド](docs/runtime.ja.md)で依存関係を確認し、次を実行します。
 
 ```sh
 pnpm install --frozen-lockfile
-UVR_OPENVINO_LIB_DIR=/path/to/openvino/lib pnpm build:native
-./target/native/release/uvr-gui
+make
 ```
 
-`pnpm gui:build:native` も同じビルドを実行します。出力は `target/native/release/uvr`、`uvr-gui`、隣接する `lib/` です。移動時は一緒に配置してください。1296 は利用可能なら OpenVINO CPU、それ以外は Burn を既定で選びます。VR は Burn を使用します。既定のスレッド数は利用可能な論理 CPU 数と 8 の小さい方です。
-
-`target-cpu=native` で現在の Linux x86_64 CPU 向けに作るため、任意の PC に配布できるビルドではありません。Burn だけなら `pnpm build:native --burn-only` を実行します。CLI と GUI は OpenVINO 版とは別の `target/native-burn/release/` に生成され、OpenVINO ライブラリは不要です。
-
-### 通常ビルド
-
-デスクトップ依存関係や、この CPU 固有の命令を必要としない CLI ビルド：
-
-```sh
-cargo build --release --locked -p uvr-cli
-```
-
-標準のターゲット設定によるデスクトップビルド：
-
-```sh
-pnpm install --frozen-lockfile
-pnpm gui:build
-./target/release/uvr-gui
-```
-
-これらは既定で Burn を使用します。`pnpm build` は Web フロントエンドのみを生成し、ローカル音声の処理にはデスクトップホストが必要です。インストーラーの生成はまだ有効にしていません。開発には `pnpm gui:dev` を使います。
+最適化された実行ファイルは `target/native/release/` に生成されます。OpenVINO を使う場合は隣接する `lib/` も一緒に移動してください。Burn-only 版には `make native-burn` を使います。汎用ビルド、Windows、CI 成果物、依存関係の詳細は[ランタイムガイド](docs/runtime.ja.md)にまとめています。開発ビルドは [GitHub Actions](https://github.com/AntheaLaffy/UVR-rs/actions/workflows/build.yml)からも取得できます。
 
 ## 開発に参加する
 

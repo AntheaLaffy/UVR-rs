@@ -63,43 +63,14 @@ Inputs: mono/stereo WAV, FLAC and MP3. Outputs: two 44.1 kHz stereo, 32-bit floa
 
 ## Build and install
 
-Development builds are available through [GitHub Actions](https://github.com/AntheaLaffy/UVR-rs/actions/workflows/build.yml), triggered by pushes, pull requests or manual runs. Download artifacts from a successful run: Linux CLI/GUI binaries and optional OpenVINO CPU libraries are packaged separately. Windows uses native Burn builds, with real-device audio acceptance still pending. These are workflow artifacts, not GitHub Releases.
-
-Linux x86_64 is the first validated platform. Install a Rust toolchain supporting edition 2024. Desktop builds also need Node.js 24, pnpm 12.1.0 and the [Tauri system prerequisites](https://v2.tauri.app/start/prerequisites/). Reference submodules and Python are not required for normal builds or inference.
-
-Windows remains unverified. Linux development can proceed alongside a collaborator building and testing on Windows. Cross-compilation does not inherently make inference slower: release optimizations, the destination CPU's supported instructions, toolchain and runtime configuration matter. For other computers, use a compatible CPU target; the native build helper below supports Linux only.
-
-### Recommended build for this CPU
-
-From the repository root, provide an OpenVINO CPU native-library directory as described in the [runtime guide](docs/runtime.md), then build both entry points:
+For the fastest local build on Linux x86_64, install the prerequisites described in the [runtime guide](docs/runtime.md), then run:
 
 ```sh
 pnpm install --frozen-lockfile
-UVR_OPENVINO_LIB_DIR=/path/to/openvino/lib pnpm build:native
-./target/native/release/uvr-gui
+make
 ```
 
-`pnpm gui:build:native` is an alias for the same build. Outputs are `target/native/release/uvr`, `uvr-gui`, and the adjacent `lib/` directory; keep them together. 1296 defaults to OpenVINO CPU when available, otherwise Burn. VR uses Burn. The default thread budget is the smaller of eight and the available logical CPU count.
-
-This build uses `target-cpu=native` for the current Linux x86_64 CPU. It is not a portable release for arbitrary computers. If you only need Burn, run `pnpm build:native --burn-only`; its CLI and GUI go into `target/native-burn/release/`, independently of the OpenVINO build, and require no OpenVINO libraries.
-
-### Standard builds
-
-For a CLI build without desktop dependencies or host-specific CPU instructions:
-
-```sh
-cargo build --release --locked -p uvr-cli
-```
-
-For a desktop build using the standard target configuration:
-
-```sh
-pnpm install --frozen-lockfile
-pnpm gui:build
-./target/release/uvr-gui
-```
-
-These builds use Burn by default. `pnpm build` builds only the web frontend; local audio processing requires the desktop host. Installer bundles are not enabled yet. For development, use `pnpm gui:dev`.
+The optimized programs are written to `target/native/release/`; keep its `lib/` directory beside them when OpenVINO is enabled. Use `make native-burn` for a Burn-only build. Generic builds, Windows guidance, CI artifacts, and dependency details are in the [runtime guide](docs/runtime.md). Development builds are available from [GitHub Actions](https://github.com/AntheaLaffy/UVR-rs/actions/workflows/build.yml).
 
 ## Contribute and explore
 
