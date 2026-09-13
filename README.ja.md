@@ -63,7 +63,7 @@ Karaoke と DeEcho の `primary` はモデルの主出力、`residual` は補完
 
 ## ビルドとインストール
 
-Linux x86_64 で最適化ビルドを作る場合は、まず[ランタイムガイド](docs/runtime.ja.md)で依存関係を確認し、次を実行します。
+Linux x86_64 で最適化ビルドを作る場合は、まず `make` と[ランタイムガイド](docs/runtime.ja.md)に記載された依存関係を用意し、次を実行します。
 
 ```sh
 pnpm install --frozen-lockfile
@@ -71,6 +71,8 @@ make
 ```
 
 最適化された実行ファイルは `target/native/release/` に生成されます。OpenVINO を使う場合は隣接する `lib/` も一緒に移動してください。Burn-only 版には `make native-burn` を使います。汎用ビルド、Windows、CI 成果物、依存関係の詳細は[ランタイムガイド](docs/runtime.ja.md)にまとめています。開発ビルドは [GitHub Actions](https://github.com/AntheaLaffy/UVR-rs/actions/workflows/build.yml)からも取得できます。
+
+`make` が利用できない場合は、[ランタイムガイド](docs/runtime.ja.md)の基礎コマンドを直接実行してください。
 
 ## 開発に参加する
 

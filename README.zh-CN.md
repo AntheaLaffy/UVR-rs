@@ -63,7 +63,7 @@ CLI 与桌面已支持单模型处理；自动多模型处理链、更多平台�
 
 ## 构建与安装
 
-在 Linux x86_64 上构建本机优化版本前，请先阅读[运行时指南](docs/runtime.zh-CN.md)准备依赖，然后运行：
+在 Linux x86_64 上构建本机优化版本前，请先安装 `make`，并阅读[运行时指南](docs/runtime.zh-CN.md)准备依赖，然后运行：
 
 ```sh
 pnpm install --frozen-lockfile
@@ -71,6 +71,8 @@ make
 ```
 
 优化产物位于 `target/native/release/`；启用 OpenVINO 时移动程序请保留旁边的 `lib/`。只使用 Burn 时运行 `make native-burn`。通用构建、Windows、CI 产物和依赖细节见[运行时指南](docs/runtime.zh-CN.md)。开发构建也可从 [GitHub Actions](https://github.com/AntheaLaffy/UVR-rs/actions/workflows/build.yml)获取。
+
+如果系统没有 `make`，请直接查看[运行时指南](docs/runtime.zh-CN.md)中的底层构建命令。
 
 ## 参与与深入了解
 

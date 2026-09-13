@@ -63,7 +63,7 @@ Inputs: mono/stereo WAV, FLAC and MP3. Outputs: two 44.1 kHz stereo, 32-bit floa
 
 ## Build and install
 
-For the fastest local build on Linux x86_64, install the prerequisites described in the [runtime guide](docs/runtime.md), then run:
+For the fastest local build on Linux x86_64, install `make` and the prerequisites described in the [runtime guide](docs/runtime.md), then run:
 
 ```sh
 pnpm install --frozen-lockfile
@@ -71,6 +71,8 @@ make
 ```
 
 The optimized programs are written to `target/native/release/`; keep its `lib/` directory beside them when OpenVINO is enabled. Use `make native-burn` for a Burn-only build. Generic builds, Windows guidance, CI artifacts, and dependency details are in the [runtime guide](docs/runtime.md). Development builds are available from [GitHub Actions](https://github.com/AntheaLaffy/UVR-rs/actions/workflows/build.yml).
+
+If `make` is unavailable on your system, use the exact underlying commands in the [runtime guide](docs/runtime.md) instead.
 
 ## Contribute and explore
 
