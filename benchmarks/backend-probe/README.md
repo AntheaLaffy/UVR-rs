@@ -83,6 +83,8 @@ cargo build --release --locked --manifest-path benchmarks/backend-probe/Cargo.to
 uv run --offline --frozen --project tools/reference python -B tools/reference/benchmark_vr_audio_reference.py --fixtures benchmarks/artifacts/backend-probe/5hp-real-audio --output benchmarks/artifacts/backend-probe/5hp-pcm-reference-perf.json --threads 2
 ```
 
+音频探针默认使用 batch=1；需要复现跨窗口实验时显式加入 `--batch 2`（可选范围为 1..4），或加入 `--parallel-windows 2..8` 测试多个 batch=1 窗口并发。两者不能用单窗口时间替代完整任务吞吐；必须同时记录墙钟、CPU、峰值 RSS 和 swap。batch／并发只作用于 HP 网络，DeEcho 始终按 batch=1 执行；不同 HP 模型的最佳值需用完整 PCM 和峰值 RSS 重新测量，不能把某个模型的中间激活吞吐直接当作通用收益。
+
 两条命令顺序执行。Python 参考使用相同清单、权重、配置、预设、计时边界和两轨门限，也记录首次执行、额外预热和五次热运行。Rust／参考的阶段划分有少量准备工作的边界差异，因此以完整 PCM 总时间比较，解码／编码性能另测。
 
 ## 完整 RoFormer 网络与音频

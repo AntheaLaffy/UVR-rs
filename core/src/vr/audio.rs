@@ -1,6 +1,7 @@
 use std::{ops::ControlFlow, path::Path, time::Instant};
 
 use anyhow::{Result, ensure};
+use rayon::prelude::*;
 
 use super::{DeEchoModel, HpKaraokeModel, HpKaraokeVariant};
 pub use crate::task::TaskCancelled;
@@ -11,16 +12,21 @@ pub struct VrOptions {
     /// Multiple of 16, at most 2048, and larger than both context margins.
     pub window_frames: usize,
     /// Number of independent spectrogram windows sent through the HP network
-    /// in one call.  Batch two improves offline throughput on the reference
-    /// CPU; DeEcho remains batch one because its network has no batch path.
+    /// in one call.  The product default stays at one because the best batch
+    /// size is model and machine dependent; DeEcho always remains batch one.
     pub inference_batch: usize,
+    /// Number of independent batch-one windows evaluated concurrently.
+    /// HP defaults to four in-flight windows; DeEcho forces one because its
+    /// recurrent state cannot be shared across windows.
+    pub window_parallelism: usize,
 }
 
 impl Default for VrOptions {
     fn default() -> Self {
         Self {
             window_frames: 512,
-            inference_batch: 2,
+            inference_batch: 1,
+            window_parallelism: 4,
         }
     }
 }
@@ -122,7 +128,7 @@ fn separate_with(
     sample_rate: u32,
     options: VrOptions,
     mut progress: impl FnMut(VrProgress) -> ControlFlow<()>,
-    predict: impl Fn(&[f32], usize, usize) -> Result<Vec<f32>>,
+    predict: impl Fn(&[f32], usize, usize) -> Result<Vec<f32>> + Sync,
 ) -> Result<VrOutput> {
     let window = options.window_frames;
     let offset = variant.offset();
@@ -138,6 +144,19 @@ fn separate_with(
         (1..=4).contains(&batch_size),
         "inference batch must be between 1 and 4"
     );
+    let window_parallelism = match variant {
+        VrVariant::DeEcho => 1,
+        VrVariant::HpFive | VrVariant::HpSix => options.window_parallelism,
+    };
+    ensure!(
+        (1..=8).contains(&window_parallelism),
+        "window parallelism must be between 1 and 8"
+    );
+    let group_width = if batch_size == 1 {
+        window_parallelism
+    } else {
+        batch_size
+    };
     let mut report = |stage, completed, total| -> Result<()> {
         if progress(VrProgress {
             stage,
@@ -182,13 +201,32 @@ fn separate_with(
     // UVR make_padding adds one ROI even when the width divides exactly.
     let patches = frames / roi + 1;
     let mut mask = vec![0.0; magnitude.len()];
-    let mut input = Vec::new();
     report(VrStage::Inference, 0, patches)?;
     let start = Instant::now();
-    for group_start in (0..patches).step_by(batch_size) {
-        let group = (patches - group_start).min(batch_size);
-        input.resize(group * planes * window, 0.0);
-        input.fill(0.0);
+    // Window-parallel HP inference keeps one input buffer per in-flight
+    // window. Reuse these buffers across groups so long files do not pay an
+    // allocation and zero-initialization cost for every group.
+    let mut parallel_inputs = if batch_size == 1 && window_parallelism > 1 {
+        Some(
+            (0..window_parallelism)
+                .map(|_| vec![0.0; planes * window])
+                .collect::<Vec<_>>(),
+        )
+    } else {
+        None
+    };
+    for group_start in (0..patches).step_by(group_width) {
+        let group = (patches - group_start).min(group_width);
+        if let Some(inputs) = parallel_inputs.as_mut() {
+            for input in inputs.iter_mut().take(group) {
+                input.fill(0.0);
+            }
+        }
+        let mut batched_input = if parallel_inputs.is_none() {
+            vec![0.0; group * planes * window]
+        } else {
+            Vec::new()
+        };
         for local in 0..group {
             let patch = group_start + local;
             let frame = patch * roi;
@@ -196,39 +234,73 @@ fn separate_with(
             let destination_start = offset.saturating_sub(frame);
             let copy = (window - destination_start).min(frames - source_start);
             for plane in 0..planes {
-                let source = &magnitude[
-                    plane * frames + source_start..plane * frames + source_start + copy
-                ];
-                let destination_start_index = local * planes * window + plane * window;
-                let destination = &mut input[destination_start_index + destination_start
-                    ..destination_start_index + destination_start + copy];
+                let source =
+                    &magnitude[plane * frames + source_start..plane * frames + source_start + copy];
+                let destination = if let Some(inputs) = parallel_inputs.as_mut() {
+                    &mut inputs[local][plane * window + destination_start
+                        ..plane * window + destination_start + copy]
+                } else {
+                    let offset = local * planes * window + plane * window;
+                    &mut batched_input
+                        [offset + destination_start..offset + destination_start + copy]
+                };
                 for (dst, &value) in destination.iter_mut().zip(source) {
                     *dst = value / maximum;
                 }
             }
         }
-        let predicted = predict(&input, window, group)?;
-        ensure!(
-            predicted.len() == group * planes * roi
-                && predicted
-                    .iter()
-                    .all(|v| v.is_finite() && (0.0..=1.0).contains(v)),
-            "network returned an invalid mask"
-        );
-        for local in 0..group {
-            let patch = group_start + local;
-            let frame = patch * roi;
-            let keep = roi.min(frames - frame);
-            for plane in 0..planes {
-                let source_start = local * planes * roi + plane * roi;
-                mask[plane * frames + frame..plane * frames + frame + keep]
-                    .copy_from_slice(&predicted[source_start..source_start + keep]);
+        if batch_size == 1 && window_parallelism > 1 {
+            // Keep each window's result separate. Flattening the vectors and
+            // scanning the entire concatenation added a full-size allocation
+            // and copy before the mask writeback pass.
+            let predictions = parallel_inputs
+                .as_ref()
+                .expect("parallel buffers initialized")
+                .par_iter()
+                .take(group)
+                .map(|input| predict(input, window, 1))
+                .collect::<Result<Vec<_>>>()?;
+            for (local, predicted) in predictions.iter().enumerate() {
+                ensure!(
+                    predicted.len() == planes * roi
+                        && predicted
+                            .iter()
+                            .all(|v| v.is_finite() && (0.0..=1.0).contains(v)),
+                    "network returned an invalid mask"
+                );
+                let patch = group_start + local;
+                let frame = patch * roi;
+                let keep = roi.min(frames - frame);
+                for plane in 0..planes {
+                    let source_start = plane * roi;
+                    mask[plane * frames + frame..plane * frames + frame + keep]
+                        .copy_from_slice(&predicted[source_start..source_start + keep]);
+                }
+                report(VrStage::Inference, patch + 1, patches)?;
             }
-            report(VrStage::Inference, patch + 1, patches)?;
+        } else {
+            let predicted = predict(&batched_input, window, group)?;
+            ensure!(
+                predicted.len() == group * planes * roi
+                    && predicted
+                        .iter()
+                        .all(|v| v.is_finite() && (0.0..=1.0).contains(v)),
+                "network returned an invalid mask"
+            );
+            for local in 0..group {
+                let patch = group_start + local;
+                let frame = patch * roi;
+                let keep = roi.min(frames - frame);
+                for plane in 0..planes {
+                    let source_start = local * planes * roi + plane * roi;
+                    mask[plane * frames + frame..plane * frames + frame + keep]
+                        .copy_from_slice(&predicted[source_start..source_start + keep]);
+                }
+                report(VrStage::Inference, patch + 1, patches)?;
+            }
         }
     }
     let network_seconds = start.elapsed().as_secs_f64();
-    drop(input);
     drop(magnitude);
     report(VrStage::Reconstruction, 0, 1)?;
     let start = Instant::now();

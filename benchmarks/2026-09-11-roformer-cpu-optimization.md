@@ -56,6 +56,29 @@
 
 该真实片段的 8 线程 release CLI 同时通过双轨 WAV、重复执行拒绝覆盖、Ctrl-C 和无部分输出检查；取消延迟 0.5643 秒，报告在 `cli-after-t8/report.json`。这次文件验证和计时数据早于 RoPE 迭代器改为 `as_chunks_mut::<2>` 的机械清理；清理后 core／CLI 的 32 项 release 测试、两个 workspace 的 Clippy 通过，不能把旧二进制摘要当作清理后的产物身份。
 
+## 后验：窗口并行与 Burn 细节
+
+本轮把 VR 上有效的独立窗口并行移植到 RoFormer 后，保留 `UVR_ROFORMER_WINDOW_PARALLELISM` 作为显式实验开关，但没有设为默认。原因是 RoFormer 的每个 8 秒窗口内部已经由 Burn Flex／Rayon 展开矩阵乘、RoPE、RMSNorm 和 GELU；外层再用 Rayon 提交完整窗口会嵌套争用同一线程池，同时复制多份约 1 GiB 级激活。该结构增加 RSS 和调度压力，未形成稳定的端到端吞吐收益，因此默认值固定为 `1`。VR 的窗口并行结果不能外推到 1296。
+
+后续 A/B 复测固定 `RAYON_NUM_THREADS=8`、同一 `signal` fixture、FP32 和原始 699 张 checkpoint。Burn 的有效方向是把时间／频率 Transformer 批次从旧的 `2/32` 调到 `62/301`，并采用 flattened linear layout：真实 8 秒窗口的网络耗时由约 `107.4 s` 降到 `103.7 s`，再降到约 `88.5 s`；两轨波形门限均通过，最快配置峰值 RSS 约 `1.19 GiB`。`301` 是测量选择，不是完整序列长度；完整时间序列为 801 帧，`801` 批次会增加激活驻留，未作为默认。
+
+实现上，`Transformer::forward_batches` 在批次覆盖整个序列时直接执行一次 `forward`，跳过原先的整段 slice 和单元素 `Tensor::cat`。同时，频率分支在 `swap_dims(1, 2)` 后显式物化一次连续布局，避免 QKV、gate 和前馈线性层各自隐式处理非连续 stride。两项改动都不改变算子顺序或浮点归约；更新后的 `signal` fixture 7 次耗时为 `1.784–2.815 s`（中位数约 `2.49 s`），完整波形检查全部通过。该短 fixture 结果用于确认方向，完整 8 秒窗口的收益仍需独立 A→B→A 复测。可复现实验命令：
+
+当前代码的真实 `local_audio` 单窗复测已完成：8 线程、默认 `62/301` 与 flattened layout，网络 `82.445 s`，进程墙钟 `85.67 s`，user／sys `218.49／19.51 s`，峰值 RSS `1,190,648 KiB`，swap 为 0；双轨误差和 RMS 门限通过。对应产物为 `benchmarks/artifacts/2026-09-11-roformer-performance/burn-contiguous-real-t8.json` 与 `.time`。与此前相同配置但未做频率连续化的约 `88.5 s` 网络记录相比，方向性改善约 6.8%；由于不是交错 A→B→A，这个百分比暂作为后验线索，不能替代重复样本统计。
+
+```text
+env PATH=/nonexistent RAYON_NUM_THREADS=8 \
+  UVR_LINEAR_LAYOUT=flattened \
+  UVR_ROFORMER_TIME_BATCH=62 \
+  UVR_ROFORMER_FREQUENCY_BATCH=301 \
+  benchmarks/backend-probe/target/release/probe-roformer-audio \
+  models/model_bs_roformer_ep_368_sdr_12.9628.ckpt \
+  benchmarks/artifacts/backend-probe/1296-f64-real-audio \
+  benchmarks/artifacts/2026-09-11-roformer-performance/burn-flat-batch62-real-t8.json
+```
+
+这组结果仍是单完整窗口／短真实片段证据，不替代整曲 RTF、冷启动、长音频峰值内存和 Python 参考对照；后续验收必须沿用同一协议。
+
 完整窗进程峰值 RSS 为 991092 KiB，未较基线采样记录明显下降；user／sys 为 704.36／38.46 秒，平均 CPU 约 341%，CPU 总时间没有同步降低。按进度间隔汇总的 Transformer 时间约 209.203 秒，其中时间分支 124.347、频率分支 84.856 秒；这些间隔含邻接拼接等工作，不是单算子的独占计时。
 
 本次完整窗是一次正确性运行；310.015 秒的旧版记录含 profiler，不能据两次单值宣称稳定提升 31%。完整窗的首次／预热／五次热运行与同资源 Python 对照仍需补齐。四套模型、默认窗口完整 PCM、整曲、处理链、最佳线程／编译配置和 GPU 继续验证。

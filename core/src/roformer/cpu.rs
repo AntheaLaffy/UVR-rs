@@ -5,6 +5,14 @@ use rayon::prelude::*;
 
 use super::T4;
 
+/// Materialize a tensor once at a layout boundary. This is useful after the
+/// band/time swap: flattened linear layers otherwise each pay for their own
+/// strided-to-contiguous conversion.
+pub(super) fn contiguous(x: T4) -> T4 {
+    let x = x.into_primitive().tensor().to_contiguous();
+    T4::from_primitive(TensorPrimitive::Float(x))
+}
+
 /// Leave the backend's reduction and its FP32 ordering intact; fuse the three
 /// broadcast operations that apply the scalar length and per-feature gain.
 pub(super) fn rms_norm(x: T4, gamma: T4) -> T4 {

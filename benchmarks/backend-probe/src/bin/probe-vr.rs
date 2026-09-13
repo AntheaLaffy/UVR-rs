@@ -1,21 +1,25 @@
 use std::{path::PathBuf, time::Instant};
 
 use anyhow::{Result, ensure};
+use rayon::prelude::*;
 use uvr_backend_probe::{Probe, measure, verify};
 use uvr_core::vr::{DeEchoModel, HpKaraokeModel};
 
-type Predict = Box<dyn Fn(&[f32], usize, usize) -> Result<Vec<f32>>>;
+type Predict = Box<dyn Fn(&[f32], usize, usize) -> Result<Vec<f32>> + Send + Sync>;
 
 fn main() -> Result<()> {
     let mut args: Vec<_> = std::env::args_os().skip(1).collect();
     let mut check_only = false;
     let mut deecho = false;
+    let mut parallel_batch1 = false;
     let mut selected_case = None;
     while let Some(flag) = args.first() {
         if flag == "--check-only" {
             check_only = true;
         } else if flag == "--deecho" {
             deecho = true;
+        } else if flag == "--parallel-batch1" {
+            parallel_batch1 = true;
         } else if flag == "--case" {
             args.remove(0);
             ensure!(!args.is_empty(), "--case requires a fixture name");
@@ -27,7 +31,7 @@ fn main() -> Result<()> {
     }
     ensure!(
         args.len() == 3,
-        "usage: probe-vr [--check-only] [--deecho] [--case <name>] <original.pth> <fixture-directory> <report.json>"
+        "usage: probe-vr [--check-only] [--deecho] [--parallel-batch1] [--case <name>] <original.pth> <fixture-directory> <report.json>"
     );
     let probe = Probe::load_paths(PathBuf::from(&args[1]), PathBuf::from(&args[2]))?;
     let start = Instant::now();
@@ -72,7 +76,17 @@ fn main() -> Result<()> {
         let frames = input.shape[3];
         let batch = input.shape[0];
         let execute = || {
-            let output = predict(&input.values, frames, batch)?;
+            let output = if parallel_batch1 && batch > 1 {
+                let per_batch = input.values.len() / batch;
+                let outputs: Result<Vec<_>> = input
+                    .values
+                    .par_chunks_exact(per_batch)
+                    .map(|window| predict(window, frames, 1))
+                    .collect();
+                outputs?.into_iter().flatten().collect()
+            } else {
+                predict(&input.values, frames, batch)?
+            };
             Ok((vec![batch, 2, bins, frames - 2 * offset], output))
         };
         if check_only {

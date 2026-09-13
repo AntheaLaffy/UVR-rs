@@ -1,12 +1,9 @@
 //! CPU kernels for the fixed VR inference networks.
 
-use burn_flex::Flex;
-use burn_tensor::{Tensor, TensorData, TensorPrimitive};
+use burn_tensor::{TensorData, TensorPrimitive};
 use rayon::prelude::*;
 
 use super::T4;
-
-type T3 = Tensor<Flex, 3>;
 
 pub(super) struct ChannelNorm {
     pub mean: f32,
@@ -51,7 +48,7 @@ pub(super) fn normalize(x: T4, parameters: &[ChannelNorm], leaky: bool) -> T4 {
 /// Reference formulation: Lavin & Gray, "Fast Algorithms for Convolutional
 /// Neural Networks" (2016), Y = A^T [(G g G^T) .* (B^T d B)] A.
 pub(super) struct Winograd3x3 {
-    weight: T3,
+    weight: Vec<f32>,
     input_channels: usize,
     output_channels: usize,
 }
@@ -62,7 +59,7 @@ impl Winograd3x3 {
         assert_eq!([kh, kw], [3, 3]);
         let weight = weight.into_primitive().tensor().to_contiguous();
         let source = weight.storage::<f32>();
-        let mut transformed = vec![0.0_f32; 36 * output_channels * input_channels];
+        let mut transformed = vec![0.0_f32; 36 * input_channels * output_channels];
         const G: [[f64; 3]; 6] = [
             [0.25, 0.0, 0.0],
             [-1.0 / 6.0, -1.0 / 6.0, -1.0 / 6.0],
@@ -85,18 +82,18 @@ impl Winograd3x3 {
                                 value += gr[y] * f64::from(source[base + y * 3 + x]) * gc[x];
                             }
                         }
-                        transformed[((row * 6 + col) * output_channels + output)
-                            * input_channels
-                            + input] = value as f32;
+                        // Store each plane as [input, output]. This is the
+                        // column-major equivalent of [output, input], so GEMM
+                        // can consume lhs with row stride 1 and skip its
+                        // per-call lhs packing for block-aligned outputs.
+                        transformed[((row * 6 + col) * input_channels + input) * output_channels
+                            + output] = value as f32;
                     }
                 }
             }
         }
         Self {
-            weight: T3::from_data(
-                TensorData::new(transformed, [36, output_channels, input_channels]),
-                &Default::default(),
-            ),
+            weight: transformed,
             input_channels,
             output_channels,
         }
@@ -115,24 +112,40 @@ impl Winograd3x3 {
         // Bound scratch space independently of the audio window length. The
         // 36 products share one batched GEMM dispatch and the caller's Rayon pool.
         const TILE_BATCH: usize = 512;
-        for b in 0..batch {
-            for start in (0..tiles_total).step_by(TILE_BATCH) {
-                let count = (tiles_total - start).min(TILE_BATCH);
-                // An odd pitch keeps the 36 transform planes from repeatedly
-                // mapping to the same L1 cache sets (channel counts are powers
-                // of two). The extra zero lane is never written to the output.
-                let pitch = count | 1;
-                let mut input = vec![0.0; channels * 36 * pitch];
-                input
-                    .par_chunks_mut(36 * pitch)
-                    .enumerate()
-                    .for_each(|(channel, dest)| {
+        let max_lanes = (batch * TILE_BATCH) | 1;
+        let mut input_scratch = vec![0.0; channels * 36 * max_lanes];
+        let mut product_scratch = vec![0.0; 36 * self.output_channels * max_lanes];
+        for start in (0..tiles_total).step_by(TILE_BATCH) {
+            let count = (tiles_total - start).min(TILE_BATCH);
+            let lanes = batch * count;
+            let tile_positions: Vec<_> = (start..start + count)
+                .map(|index| {
+                    let top = index / tiles_wide * 4;
+                    let left = index % tiles_wide * 4;
+                    (
+                        top as isize - 1,
+                        left as isize - 1,
+                        top,
+                        left,
+                        4.min(height - top),
+                        4.min(width - left),
+                    )
+                })
+                .collect();
+            // An odd pitch keeps the 36 transform planes from repeatedly
+            // mapping to the same L1 cache sets (channel counts are powers
+            // of two). The extra zero lane is never written to the output.
+            let pitch = lanes | 1;
+            let input = &mut input_scratch[..channels * 36 * pitch];
+            input
+                .par_chunks_mut(36 * pitch)
+                .enumerate()
+                .for_each(|(channel, dest)| {
+                    for b in 0..batch {
                         let plane = &source[(b * channels + channel) * spatial
                             ..(b * channels + channel + 1) * spatial];
                         for tile in 0..count {
-                            let index = start + tile;
-                            let top = (index / tiles_wide * 4) as isize - 1;
-                            let left = (index % tiles_wide * 4) as isize - 1;
+                            let (top, left, _, _, _, _) = tile_positions[tile];
                             let mut rows = [[0.0; 6]; 6];
                             if top >= 0
                                 && left >= 0
@@ -159,55 +172,124 @@ impl Winograd3x3 {
                                     *row = input_transform(values);
                                 }
                             }
+                            let lane = b * count + tile;
                             for col in 0..6 {
                                 let values = input_transform(std::array::from_fn(|y| rows[y][col]));
                                 for row in 0..6 {
-                                    dest[(row * 6 + col) * pitch + tile] = values[row];
+                                    dest[(row * 6 + col) * pitch + lane] = values[row];
                                 }
                             }
                         }
+                    }
+                });
+            // The transformed input is already in the strided layout expected
+            // by gemm. Calling the kernel directly avoids materializing a
+            // Burn batched tensor and rediscovering these strides for every
+            // tile group; Rayon still owns the 36 independent plane calls.
+            let product = &mut product_scratch[..36 * self.output_channels * pitch];
+            product
+                .par_chunks_mut(self.output_channels * pitch)
+                .enumerate()
+                .for_each(|(plane, destination)| {
+                    let lhs = &self.weight[plane * self.input_channels * self.output_channels
+                        ..(plane + 1) * self.input_channels * self.output_channels];
+                    let rhs_offset = plane * pitch;
+                    gemm_f32_strided(
+                        destination,
+                        lhs,
+                        &input[rhs_offset..],
+                        self.output_channels,
+                        pitch,
+                        self.input_channels,
+                        36 * pitch,
+                        self.output_channels,
+                        1,
+                    );
+                });
+            output
+                .par_chunks_mut(spatial)
+                .enumerate()
+                .for_each(|(plane_index, plane)| {
+                    let b = plane_index / self.output_channels;
+                    let channel = plane_index % self.output_channels;
+                    let product_offsets: [usize; 36] = std::array::from_fn(|product_plane| {
+                        (product_plane * self.output_channels + channel) * pitch
                     });
-                // Store each channel's transform together so input preparation
-                // can run in parallel without shared writes or an NHWC copy.
-                let input = T3::from_data(
-                    TensorData::new(input, [channels, 36, pitch]),
-                    &Default::default(),
-                )
-                .swap_dims(0, 1);
-                let product = self.weight.clone().matmul(input).into_primitive().tensor();
-                let product = product.storage::<f32>();
-                output
-                    [b * self.output_channels * spatial..(b + 1) * self.output_channels * spatial]
-                    .par_chunks_mut(spatial)
-                    .enumerate()
-                    .for_each(|(channel, plane)| {
-                        for tile in 0..count {
-                            let index = start + tile;
-                            let top = index / tiles_wide * 4;
-                            let left = index % tiles_wide * 4;
-                            let mut rows = [[0.0; 4]; 6];
-                            for (row, values) in rows.iter_mut().enumerate() {
-                                *values = output_transform(std::array::from_fn(|col| {
-                                    product[((row * 6 + col) * self.output_channels + channel)
-                                        * pitch
-                                        + tile]
-                                }));
-                            }
-                            for col in 0..4.min(width - left) {
-                                let values =
-                                    output_transform(std::array::from_fn(|y| rows[y][col]));
-                                for row in 0..4.min(height - top) {
-                                    plane[(top + row) * width + left + col] = values[row];
-                                }
+                    for tile in 0..count {
+                        let (_, _, top, left, valid_height, valid_width) = tile_positions[tile];
+                        let lane = b * count + tile;
+                        let mut rows = [[0.0; 4]; 6];
+                        for (row, values) in rows.iter_mut().enumerate() {
+                            *values = output_transform(std::array::from_fn(|col| {
+                                product[product_offsets[row * 6 + col] + lane]
+                            }));
+                        }
+                        for col in 0..valid_width {
+                            let values = output_transform(std::array::from_fn(|y| rows[y][col]));
+                            for row in 0..valid_height {
+                                plane[(top + row) * width + left + col] = values[row];
                             }
                         }
-                    });
-            }
+                    }
+                });
         }
         T4::from_data(
             TensorData::new(output, [batch, self.output_channels, height, width]),
             &Default::default(),
         )
+    }
+}
+
+/// Run one independent Winograd plane through the GEMM micro-kernel.
+///
+/// The three slices are contiguous owners of the storage passed to `gemm`.
+/// Their lengths and the maximum strided addresses are checked before the
+/// pointer call, and the outer Rayon loop gives each invocation disjoint
+/// destination storage. `read_dst = false` is valid because the destination
+/// is freshly zero-initialized and beta is ignored by that mode.
+#[inline]
+#[allow(unsafe_code)]
+fn gemm_f32_strided(
+    destination: &mut [f32],
+    lhs: &[f32],
+    rhs: &[f32],
+    rows: usize,
+    columns: usize,
+    inner: usize,
+    rhs_row_stride: usize,
+    lhs_col_stride: usize,
+    lhs_row_stride: usize,
+) {
+    assert!(inner > 0);
+    assert_eq!(destination.len(), rows * columns);
+    assert_eq!(lhs.len(), rows * inner);
+    assert!(rhs.len() >= (inner - 1) * rhs_row_stride + columns);
+
+    // SAFETY: all pointers come from live slices; the assertions above prove
+    // every strided read/write stays within those slices. `destination` is a
+    // unique mutable slice for this Rayon task, while lhs/rhs are read-only.
+    unsafe {
+        gemm::gemm(
+            rows,
+            columns,
+            inner,
+            destination.as_mut_ptr(),
+            1,
+            columns as isize,
+            false,
+            lhs.as_ptr(),
+            lhs_col_stride as isize,
+            lhs_row_stride as isize,
+            rhs.as_ptr(),
+            1,
+            rhs_row_stride as isize,
+            0.0,
+            1.0,
+            false,
+            false,
+            false,
+            gemm::Parallelism::None,
+        );
     }
 }
 

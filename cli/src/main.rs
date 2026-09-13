@@ -29,12 +29,12 @@ fn main() -> ExitCode {
         println!(concat!(
             "UVR — 音频分离\n\n用法：uvr [--help | --version]\n",
             "      uvr inspect-weights <文件>\n      uvr inspect-audio <音频>\n",
-            "      uvr separate-vr <5hp|6hp|deecho> <权重> <音频> <输出目录> [--window-frames <帧数>]\n\n",
+            "      uvr separate-vr <5hp|6hp|deecho> <权重> <音频> <输出目录> [--window-frames <帧数>] [--parallel-windows <数量>]\n\n",
             "      uvr separate-1296 <权重> <音频> <输出目录> [--backend <burn|openvino-cpu>]\n\n",
             "inspect-weights 输出文件大小、整文件 SHA-256 和 UVR 元数据 MD5 标识。\n",
             "inspect-audio 解码 WAV／FLAC／MP3 并报告声道、采样率和精确长度。\n",
             "separate-vr 为 CPU 验证版，保存模型主输出与互补输出两条 44.1 kHz 双声道浮点 WAV。\n",
-            "默认 512 帧、2 线程，TTA／额外掩码后处理关闭；帧数可为 16 的倍数且不超过 2048。\n",
+            "默认 512 帧、HP 窗口并发 4，TTA／额外掩码后处理关闭；帧数可为 16 的倍数且不超过 2048。\n",
             "RAYON_NUM_THREADS 可设线程数；Ctrl-C 在阶段和窗口之间取消；已有输出不会覆盖。\n",
             "separate-1296 使用工程基线 v1.1：8 秒窗、重叠数 4、64 位正向频谱、FP32 网络。\n",
             "1296 输出人声／伴奏两轨，支持窗内取消；当前为 CPU 验证版，整曲验收与处理链仍在开发。\n",
@@ -79,7 +79,7 @@ fn main() -> ExitCode {
             Path::new(&args[3]),
             openvino,
         ))
-    } else if (args.len() == 5 || args.len() == 7) && args[0] == "separate-vr" {
+    } else if (args.len() == 5 || args.len() == 7 || args.len() == 9) && args[0] == "separate-vr" {
         let (name, variant) = match args[1].to_str() {
             Some("5hp") => ("5hp", VrVariant::HpFive),
             Some("6hp") => ("6hp", VrVariant::HpSix),
@@ -87,18 +87,32 @@ fn main() -> ExitCode {
             _ => return usage_error(),
         };
         let mut options = VrOptions::default();
-        if args.len() == 7 {
-            if args[5] != "--window-frames" {
-                return usage_error();
+        if args.len() > 5 {
+            for pair in args[5..].chunks_exact(2) {
+                let Some(value) = pair[1].to_str() else {
+                    return usage_error();
+                };
+                match pair[0].to_str() {
+                    Some("--window-frames") => {
+                        let Some(frames) = value.parse().ok() else {
+                            return usage_error();
+                        };
+                        options.window_frames = frames;
+                    }
+                    Some("--parallel-windows") => {
+                        let Some(parallelism) = value.parse().ok() else {
+                            return usage_error();
+                        };
+                        options.window_parallelism = parallelism;
+                    }
+                    _ => return usage_error(),
+                }
             }
-            let Some(frames) = args[6].to_str().and_then(|v| v.parse().ok()) else {
-                return usage_error();
-            };
-            options.window_frames = frames;
         }
         if options.window_frames <= 2 * variant.offset()
             || options.window_frames > 2048
             || !options.window_frames.is_multiple_of(16)
+            || !(1..=8).contains(&options.window_parallelism)
         {
             return usage_error();
         }

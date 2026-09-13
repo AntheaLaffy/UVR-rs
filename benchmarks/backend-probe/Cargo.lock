@@ -3647,6 +3647,7 @@ dependencies = [
  "burn-flex",
  "burn-store",
  "burn-tensor",
+ "gemm",
  "md-5",
  "openvino",
  "rayon",

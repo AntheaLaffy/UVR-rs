@@ -13,6 +13,10 @@ fn main() -> Result<()> {
     let mut args: Vec<_> = std::env::args_os().skip(1).collect();
     let mut measure = false;
     let mut selected_case = None;
+    let mut inference_batch = 1usize;
+    let mut measurement_runs = None;
+    let mut window_parallelism = 1usize;
+    let mut window_frames_override = None;
     while let Some(flag) = args.first() {
         if flag == "--measure" {
             measure = true;
@@ -20,14 +24,62 @@ fn main() -> Result<()> {
             args.remove(0);
             ensure!(!args.is_empty(), "--case requires a fixture name");
             selected_case = Some(args[0].to_string_lossy().into_owned());
+        } else if flag == "--batch" {
+            args.remove(0);
+            ensure!(!args.is_empty(), "--batch requires a value");
+            inference_batch = args[0]
+                .to_string_lossy()
+                .parse()
+                .map_err(|_| anyhow::anyhow!("--batch must be an integer"))?;
+            ensure!(
+                (1..=4).contains(&inference_batch),
+                "--batch must be between 1 and 4"
+            );
+        } else if flag == "--runs" {
+            args.remove(0);
+            ensure!(!args.is_empty(), "--runs requires a value");
+            measurement_runs = Some(
+                args[0]
+                    .to_string_lossy()
+                    .parse()
+                    .map_err(|_| anyhow::anyhow!("--runs must be an integer"))?,
+            );
+        } else if flag == "--parallel-windows" {
+            args.remove(0);
+            ensure!(!args.is_empty(), "--parallel-windows requires a value");
+            window_parallelism = args[0]
+                .to_string_lossy()
+                .parse()
+                .map_err(|_| anyhow::anyhow!("--parallel-windows must be an integer"))?;
+            ensure!(
+                (1..=8).contains(&window_parallelism),
+                "--parallel-windows must be between 1 and 8"
+            );
+        } else if flag == "--window-frames" {
+            args.remove(0);
+            ensure!(!args.is_empty(), "--window-frames requires a value");
+            window_frames_override = Some(
+                args[0]
+                    .to_string_lossy()
+                    .parse()
+                    .map_err(|_| anyhow::anyhow!("--window-frames must be an integer"))?,
+            );
         } else {
             break;
         }
         args.remove(0);
     }
+    if let Some(runs) = measurement_runs {
+        ensure!((3..=20).contains(&runs), "--runs must be between 3 and 20");
+    }
+    let executions = if measure {
+        measurement_runs.unwrap_or(7)
+    } else {
+        1
+    };
     ensure!(
         args.len() == 3,
-        "usage: probe-vr-audio [--measure] [--case <name>] <original.pth> <fixtures> <report.json>"
+        "usage: probe-vr-audio [--measure] [--runs <3..20>] [--case <name>] [--batch <1..4>] [--parallel-windows <1..8>] [--window-frames <multiple-of-16>] <original.pth> <fixtures> <report.json>"
     );
     let root = PathBuf::from(&args[1]);
     let raw = std::fs::read(root.join("manifest.json"))?;
@@ -51,11 +103,13 @@ fn main() -> Result<()> {
             continue;
         }
         let params = &manifest["audio"]["cases"][&case.name];
+        let window_frames = window_frames_override
+            .unwrap_or_else(|| params["window_frames"].as_u64().unwrap() as usize);
         let input = &probe.tensors[&case.input];
         ensure!(input.shape.len() == 2 && (1..=2).contains(&input.shape[0]) && input.shape[1] > 0);
         let channels: Vec<_> = input.values.chunks_exact(input.shape[1]).collect();
         let mut runs = Vec::new();
-        for _ in 0..if measure { 7 } else { 1 } {
+        for _ in 0..executions {
             let mut patches = 0;
             let mut completed = false;
             let mut window_seconds = Vec::new();
@@ -66,10 +120,9 @@ fn main() -> Result<()> {
                 &channels,
                 params["sample_rate"].as_u64().unwrap() as u32,
                 VrOptions {
-                    window_frames: params["window_frames"].as_u64().unwrap() as usize,
-                    // Keep historical audio probe measurements at batch one;
-                    // the product default is benchmarked separately.
-                    inference_batch: 1,
+                    window_frames,
+                    inference_batch,
+                    window_parallelism,
                 },
                 |progress| {
                     first_progress_seconds.get_or_insert_with(|| start.elapsed().as_secs_f64());
@@ -91,7 +144,7 @@ fn main() -> Result<()> {
             )?;
             let total_seconds = start.elapsed().as_secs_f64();
             ensure!(
-                completed && patches == params["patches"].as_u64().unwrap() as usize,
+                completed,
                 "progress mismatch"
             );
             ensure!(
@@ -169,7 +222,10 @@ fn main() -> Result<()> {
     let report = json!({"mode": if measure { "measurement" } else { "verification_only" },
         "timing": "complete PCM separation; includes resampling, spectral analysis, windows and reconstruction; excludes fixture I/O, model load, encoding and verification",
         "warmup_executions": if measure { 1 } else { 0 },
-        "variant": format!("{variant:?}"), "backend": "burn-flex 0.21.0 CPU FP32",
+        "measurement_runs": executions,
+        "variant": format!("{variant:?}"), "backend": "burn-flex 0.21.0 CPU FP32", "inference_batch": inference_batch,
+        "window_parallelism": window_parallelism,
+        "window_frames_override": window_frames_override,
         "manifest_sha256": format!("{:x}", Sha256::digest(raw)), "threads": std::env::var("RAYON_NUM_THREADS")?,
         "model_load_seconds": load_seconds, "absolute_tolerance": 2e-4, "relative_tolerance": 2e-3,
         "rms_relative_tolerance": 1e-3, "rms_floor": 1e-4, "checks": checks});

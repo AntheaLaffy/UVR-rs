@@ -93,7 +93,9 @@ fn main() -> Result<()> {
                 "network": output.timings.network_seconds, "reconstruction": output.timings.reconstruction_seconds}}));
     }
     let result = model.separate(&[&[0.2; 2048]], 44100, |p| {
-        if p.stage == RoformerStage::Inference && p.completed == 3 {
+        // Serial Burn reports inner transformer progress; the offline
+        // window-parallel scheduler reports after a completed window.
+        if p.stage == RoformerStage::Inference && (p.completed == 3 || p.windows_completed > 0) {
             ControlFlow::Break(())
         } else {
             ControlFlow::Continue(())

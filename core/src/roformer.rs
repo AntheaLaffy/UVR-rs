@@ -25,6 +25,9 @@ const DIM: usize = 512;
 const HEADS: usize = 8;
 const HEAD_DIM: usize = 64;
 const DEPTH: usize = 12;
+// Measured on the complete 801-frame window: 301 balances GEMM shape and
+// activation residency better than either the old 32 or a full 801 batch.
+const DEFAULT_FREQUENCY_BATCH: usize = 301;
 const BANDS: [usize; 62] = [
     2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 4, 4, 4, 4, 4, 4, 4, 4,
     4, 4, 4, 4, 12, 12, 12, 12, 12, 12, 12, 12, 24, 24, 24, 24, 24, 24, 24, 24, 48, 48, 48, 48, 48,
@@ -110,8 +113,13 @@ impl RoformerModel {
         }
         let norm = RmsNorm::load(&mut loader, "final_norm.gamma", DIM)?;
         loader.finish(699)?;
-        let time_batch = configured_batch("UVR_ROFORMER_TIME_BATCH", 2)?;
-        let frequency_batch = configured_batch("UVR_ROFORMER_FREQUENCY_BATCH", 32)?;
+        // Offline Burn inference benefits from keeping each independent
+        // sequence in one large matmul. These defaults are the measured
+        // speed-first configuration; the environment variables remain
+        // available for lower-memory machines and controlled experiments.
+        let time_batch = configured_batch("UVR_ROFORMER_TIME_BATCH", BANDS.len())?;
+        let frequency_batch =
+            configured_batch("UVR_ROFORMER_FREQUENCY_BATCH", DEFAULT_FREQUENCY_BATCH)?;
         Ok(Self {
             bands,
             layers,
@@ -151,8 +159,7 @@ impl RoformerModel {
         let total = 4
             + 2 * BANDS.len()
             + DEPTH
-                * (BANDS.len().div_ceil(self.time_batch)
-                    + frames.div_ceil(self.frequency_batch));
+                * (BANDS.len().div_ceil(self.time_batch) + frames.div_ceil(self.frequency_batch));
         if progress(0, total).is_break() {
             return Err(TaskCancelled.into());
         }
@@ -203,7 +210,11 @@ impl RoformerModel {
         for [time, frequency] in &self.layers {
             x = time.forward_batches(x, self.time_batch, &mut advance)?;
             x = frequency
-                .forward_batches(x.swap_dims(1, 2), self.frequency_batch, &mut advance)?
+                .forward_batches(
+                    cpu::contiguous(x.swap_dims(1, 2)),
+                    self.frequency_batch,
+                    &mut advance,
+                )?
                 .swap_dims(1, 2);
         }
         x = self.norm.forward(x);
@@ -314,8 +325,8 @@ impl Linear {
 
 fn configured_linear_layout() -> Result<bool> {
     match std::env::var("UVR_LINEAR_LAYOUT").as_deref() {
-        Ok("flattened") => Ok(true),
-        Ok("batched") | Err(_) => Ok(false),
+        Ok("flattened") | Err(_) => Ok(true),
+        Ok("batched") => Ok(false),
         Ok(value) => anyhow::bail!("UVR_LINEAR_LAYOUT must be batched or flattened, got {value}"),
     }
 }
@@ -381,6 +392,14 @@ impl Transformer {
         advance: &mut impl FnMut() -> Result<()>,
     ) -> Result<T4> {
         let batches = x.dims()[1];
+        // The speed-first defaults normally cover the whole sequence. Avoid
+        // a self-slice followed by a one-item `cat`, both of which can force
+        // an otherwise unnecessary layout copy in Burn Flex.
+        if size >= batches {
+            let output = self.forward(x);
+            advance()?;
+            return Ok(output);
+        }
         let mut output = Vec::with_capacity(batches.div_ceil(size));
         for start in (0..batches).step_by(size) {
             output.push(self.forward(x.clone().slice_dim(1, start..(start + size).min(batches))));

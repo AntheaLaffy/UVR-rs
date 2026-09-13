@@ -12,4 +12,4 @@ publish = false
 uvr-core = { path = "core" }
 
 [workspace.lints.rust]
-unsafe_code = "forbid"
+unsafe_code = "warn"
