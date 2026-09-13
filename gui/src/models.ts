@@ -48,9 +48,10 @@ export class ModelLibrary {
       try { await bridge.core.invoke("cancel_task", { id: this.downloadId, lang: getLanguage() }); }
       catch (error) { this.setMessage(() => t("download.phase.error", { error: String(error) })); this.cancel.disabled = false; }
     });
-    window.addEventListener("focus", () => {
-      if (this.connected && !this.checking && !this.downloading && !context.busy()) void this.scan();
-    });
+    // Do not rescan on window focus. Hashing multi-gigabyte model files can
+    // take long enough to make a returning user think the task controls froze.
+    // Scans still run on connect, an explicit "Check again", directory change,
+    // and after a download completes.
     onLanguageChange(() => {
       this.render();
       node("library-summary").textContent = this.checking ? t("library.checking") : this.summaryText();
