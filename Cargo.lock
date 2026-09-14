@@ -6655,7 +6655,7 @@ dependencies = [
 
 [[package]]
 name = "uvr-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "ctrlc",
@@ -6664,7 +6664,7 @@ dependencies = [
 
 [[package]]
 name = "uvr-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "burn-flex",
@@ -6687,14 +6687,14 @@ dependencies = [
 
 [[package]]
 name = "uvr-dsp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "uvr-core",
 ]
 
 [[package]]
 name = "uvr-gui"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -6706,28 +6706,28 @@ dependencies = [
 
 [[package]]
 name = "uvr-models"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "uvr-core",
 ]
 
 [[package]]
 name = "uvr-roformer"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "uvr-core",
 ]
 
 [[package]]
 name = "uvr-runtime"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "uvr-core",
 ]
 
 [[package]]
 name = "uvr-vr"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "uvr-core",
 ]

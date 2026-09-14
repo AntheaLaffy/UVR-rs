@@ -7,7 +7,7 @@ The complete file-oriented API used by the [UVR Rust](https://github.com/IronHpc
 
 ```toml
 [dependencies]
-uvr-runtime = "0.1.0"
+uvr-runtime = "0.1.1"
 ```
 
 Enable `openvino` for the optional Linux 1296 CPU backend or `model-download` for model cache management. Model weights and native OpenVINO libraries remain external.

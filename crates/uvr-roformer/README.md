@@ -7,7 +7,7 @@ CPU inference and PCM separation for the BS-RoFormer 1296 checkpoint supported b
 
 ```toml
 [dependencies]
-uvr-roformer = { version = "0.1.0", features = ["openvino"] }
+uvr-roformer = { version = "0.1.1", features = ["openvino"] }
 ```
 
 Original model weights and OpenVINO native libraries are not bundled. Full-track and multi-model-chain performance tuning remains incomplete.
