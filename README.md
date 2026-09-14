@@ -2,6 +2,8 @@
 
 # UVR Rust
 
+[![crates.io](https://img.shields.io/crates/v/uvr-core.svg?logo=rust&label=crates.io)](https://crates.io/crates/uvr-core)
+
 English · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 
 **VR separation at about 3× the CPU speed of the Python reference, with a 6.94 MB native CLI.**

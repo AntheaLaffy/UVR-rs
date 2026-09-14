@@ -2,6 +2,8 @@
 
 # UVR Rust
 
+[![crates.io](https://img.shields.io/crates/v/uvr-core.svg?logo=rust&label=crates.io)](https://crates.io/crates/uvr-core)
+
 [English](README.md) · 简体中文 · [日本語](README.ja.md)
 
 **VR CPU 推理约为 Python 参考的 3 倍速度，原生 CLI 仅 6.94 MB。**
