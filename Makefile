@@ -1,7 +1,7 @@
 # Local developer entry points. The default target is the measured native build.
 .DEFAULT_GOAL := native
 
-.PHONY: native native-burn web check fmt lint test help
+.PHONY: native native-burn web check fmt lint test publish-crates push-both help
 
 native:
 	 pnpm build:native
@@ -24,6 +24,12 @@ lint:
 test:
 	 cargo test --workspace --all-features --locked
 
+publish-crates:
+	 tools/publish-crates.sh
+
+push-both:
+	 tools/push-both.sh
+
 help:
 	 @printf '%s\n' \
 	  'make                 Build the CPU-optimized native CLI and GUI' \
@@ -32,4 +38,6 @@ help:
 	  'make check            Run workspace checks' \
 	  'make fmt              Verify Rust formatting' \
 	  'make lint             Run strict Clippy' \
-	  'make test             Run the full workspace test suite'
+	  'make test             Run the full workspace test suite' \
+	  'make publish-crates   Publish library crates to crates.io in dependency order' \
+	  'make push-both        Push the current branch to origin and upstream'

@@ -7,7 +7,7 @@ Reusable STFT, spectrogram, resampling and VR spectral-analysis primitives from 
 
 ```toml
 [dependencies]
-uvr-dsp = "0.1.1"
+uvr-dsp = "0.1.2"
 ```
 
 This crate performs DSP only. It does not include model weights, neural-network inference, file codecs or Python/PyTorch.

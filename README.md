@@ -7,7 +7,7 @@
 [![Downloads](https://img.shields.io/crates/d/uvr-core?logo=rust&label=downloads)](https://crates.io/crates/uvr-core)
 [![docs.rs](https://docs.rs/uvr-core/badge.svg)](https://docs.rs/uvr-core)
 [![License](https://img.shields.io/crates/l/uvr-core?label=license)](LICENSE)
-[![MSRV](https://img.shields.io/badge/MSRV-1.85%2B-orange?logo=rust)](CONTRIBUTING.md#check-a-change)
+[![MSRV](https://img.shields.io/badge/MSRV-1.88%2B-orange?logo=rust)](CONTRIBUTING.md#check-a-change)
 
 English · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 

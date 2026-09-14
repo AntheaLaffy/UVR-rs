@@ -7,7 +7,7 @@ Supported-model metadata and weight fingerprinting from [UVR Rust](https://githu
 
 ```toml
 [dependencies]
-uvr-models = { version = "0.1.1", features = ["download"] }
+uvr-models = { version = "0.1.2", features = ["download"] }
 ```
 
 Model weights remain external and subject to their authors' terms. This crate does not redistribute them.

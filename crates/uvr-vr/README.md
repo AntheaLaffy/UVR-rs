@@ -7,7 +7,7 @@ CPU inference and PCM separation for the 5-HP, 6-HP and DeEcho models supported 
 
 ```toml
 [dependencies]
-uvr-vr = "0.1.1"
+uvr-vr = "0.1.2"
 ```
 
 Original model weights are loaded at runtime and are not bundled. DeEcho batch and window concurrency are currently fixed at one while tuning remains incomplete.
