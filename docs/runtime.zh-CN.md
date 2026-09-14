@@ -16,6 +16,12 @@ CPU 线程数默认为可用 CPU 数与 8 的较小值。配置依据本项目�
 
 OpenVINO 产品入口目前只支持 1296 的 CPU 推理；实验中的 GPU 与其他后端不作为可用选项。应用确认 OpenVINO CPU 原生运行时可用后才推荐它，否则推荐 Burn；显式指定不可用的后端会返回错误。
 
+### 尚未完成的调优
+
+DeEcho 的批次与窗口并发调优尚未完成。当前实现强制 `inference_batch=1`、`window_parallelism=1`；窗口长度仍可调整，默认 512 帧，合法范围为 144–2048 的 16 倍数。双向 LSTM 要求每窗状态独立，未来上下文也使跨窗状态复用不能直接视为等价，但这不排除独立窗口并发。固定为 1 是当前实现的保守限制：DeEcho 并发 1／2／4 的完整音频对照，包括状态隔离和输出检查，尚未完成。HP 的实测不能证明 DeEcho 提高并发一定更慢。
+
+BS-RoFormer 1296 的 Burn 与 OpenVINO 路径也尚未完成调优。Burn 的布局和注意力批次调整已有计时与波形检查；OpenVINO CPU 已有重复短音频对照，并接入 GUI／CLI。这些都是阶段性结果，完整窗口重复测量、近期布局改动的交错前后对照，以及整曲和多模型处理链性能验收仍待完成。当前默认值是调优起点，不代表已找到最快配置。待办与通过条件见[性能协议](performance.md#尚未完成的调优与验收)。
+
 ## 桌面设置
 
 任务表单的「推理运行时」提供后端与计算线程选项，「高级推理参数」按当前模型展开。配置摘要和任务记录显示本次任务实际使用的选项。
@@ -109,6 +115,6 @@ Burn-only 产物位于 `target/native-burn/release/`，与 `target/native/releas
 
 ## 性能证据与维护
 
-VR 默认配置有完整 5-HP、6-HP 音频实验支撑；Burn 1296 的布局与批次配置有波形检查和耗时记录；OpenVINO 有完整短音频波形对照、重复 CPU 测量和直接从原始 checkpoint 构图的 Rust 路径。这些结果不能推导出对 UVR 的普遍速度优势、模型质量提升，或整曲和多模型处理链已经完成验收。
+HP 默认配置有完整 5-HP、6-HP 音频实验支撑；Burn 1296 的布局与批次配置有波形检查和耗时记录；OpenVINO 有完整短音频波形对照、重复 CPU 测量和直接从原始 checkpoint 构图的 Rust 路径。这些结果不能推导出对 UVR 的普遍速度优势、模型质量提升，或整曲和多模型处理链已经完成验收。
 
 详细记录见 [VR CPU 实验](../benchmarks/2026-09-11-vr-cpu-optimization.md)、[Burn 1296 实验](../benchmarks/2026-09-11-roformer-cpu-optimization.md)、[OpenVINO 实验](../benchmarks/2026-09-11-roformer-openvino.md) 与 [性能协议](performance.md)。共享参数契约和维护检查见[贡献指南](../CONTRIBUTING.zh-CN.md)。

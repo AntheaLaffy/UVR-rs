@@ -1,8 +1,16 @@
 # 性能协议与优化实验
 
-状态：2026-09-13，已有 [卷积模块](../benchmarks/2026-09-10-vr-cpu-blocks.md)、[LSTM／RoFormer 模块](../benchmarks/2026-09-10-sequence-cpu-blocks.md)、[5-HP／6-HP 完整掩码网络](../benchmarks/2026-09-10-hp-cpu-network.md) 和 [DeEcho 完整掩码网络](../benchmarks/2026-09-10-deecho-cpu-network.md) 的 CPU 记录，以及 [VR 文件处理与真实片段](../benchmarks/2026-09-11-vr-cli-audio.md) 的正确性对照。整曲及处理链尚未完成性能验收。性能目标、速度优先的内存策略及质量阈值由 [工程基线 v1.3](baseline.md) 固定；以下候选方向不代表已经实现或完成调优。
+状态：2026-09-14，已有 [卷积模块](../benchmarks/2026-09-10-vr-cpu-blocks.md)、[LSTM／RoFormer 模块](../benchmarks/2026-09-10-sequence-cpu-blocks.md)、[5-HP／6-HP 完整掩码网络](../benchmarks/2026-09-10-hp-cpu-network.md) 和 [DeEcho 完整掩码网络](../benchmarks/2026-09-10-deecho-cpu-network.md) 的 CPU 记录，以及 [VR 文件处理与真实片段](../benchmarks/2026-09-11-vr-cli-audio.md) 的正确性对照。DeEcho 批次／窗口并发与 RoFormer 性能调优仍未完成，整曲及处理链尚未完成性能验收。性能目标、速度优先的内存策略及质量阈值由 [工程基线 v1.3](baseline.md) 固定；以下候选方向不代表已经实现或完成调优。
 
 目标是在既定音质下充分压榨推理性能，覆盖四套模型及完整处理链。两线程、FP32、batch=1 用作固定资源对照；另测充分利用本机硬件的最佳配置。与 Python 参考相比仍慢的路径不能通过性能验收，超过参考也不是停止优化的条件。每轮按实测热点选择投入，复测完整任务的速度、内存和响应；适用的高收益方向必须实际验证，保留采用／拒绝理由和剩余瓶颈。
+
+## 尚未完成的调优与验收
+
+DeEcho：当前 [运行时实现](../core/src/vr/audio.rs) 强制 `inference_batch=1`、`window_parallelism=1`，不是窗口长度固定为 1；窗口默认仍为 512 帧。已有模块和完整网络优化记录，但[窗口并发实验](../benchmarks/2026-09-11-vr-cpu-optimization.md)只覆盖 HP，DeEcho 并发 1／2／4 的完整音频性能比较尚未完成。双向 LSTM 的时间步依赖和未来上下文限制了状态复用，每窗须独立重置 hidden／cell；这不构成独立窗口不能并发或并发必然更慢的证明。先实现并验证状态、激活和 scratch 隔离的实验路径，再固定同一权重、音频、窗口和总线程预算比较并发 1／2／4，张量批次 1／2／4 另行验证。当前仅传入更高参数仍会生效为 1，不能作为并发实验。
+
+RoFormer（1296）：Burn 与 OpenVINO 的性能调优均未完成。Burn 已有批次、布局和频率连续化的单窗计时与波形检查；OpenVINO CPU 已有原始 checkpoint 构图、短音频重复测量、取消与请求复用验证，GUI／CLI 也已接入。待补齐完整窗口重复测量、近期布局改动的交错 A→B→A、同资源 Burn／OpenVINO／Python 参考对照，以及整曲、跨窗和多模型处理链验收。缓存、批次、线程和调度仍需结合后续热点复测；[Burn 窗口并发已尝试但未形成稳定收益](../benchmarks/2026-09-11-roformer-cpu-optimization.md)，不属于“从未测试”。[OpenVINO GPU](../benchmarks/2026-09-11-roformer-openvino.md) 的队列故障与分发验证仍未闭环，继续作为实验路径。5-HP 的 RTF 约 2／Python 约 6 不能用作 DeEcho 或 RoFormer 的速度结论。
+
+上述候选沿用本协议的固定输入、预热与至少五次热运行要求，同时记录完整任务墙钟、网络耗时、RTF、峰值 RSS、swap、取消延迟和双轨波形误差；整曲另查冷启动、首尾、接缝及长时间内存和交互响应。只有对应模型的端到端收益可重复、质量和响应检查通过，才调整默认值；已有局部收益或产品接入不代表整体调优完成。
 
 ### 优化范围原则：热点优先，但不只优化热点
 

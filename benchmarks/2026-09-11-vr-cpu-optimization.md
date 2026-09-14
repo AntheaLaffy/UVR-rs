@@ -105,6 +105,8 @@ cargo build --release --manifest-path benchmarks/backend-probe/Cargo.toml --bin 
 
 窗口并发 4 是 5-HP 这份 4 窗口任务的最快点；并发 6 没有继续提速，属于额外在途内存和调度开销。并发 4 相对串行增加约 1.37 GiB RSS，但同时减少 12.307 秒墙钟，且没有 swap；这部分内存是有效的并行激活／scratch，而不是仅占用内存。6-HP 的同协议任务也从 30.380 秒降到 24.448 秒（−19.5%），RSS 从 1,016,112 KiB 增至 2,321,432 KiB，确认收益不是 5-HP 特例。基于两套 HP 的完整任务证据，`VrOptions::default()` 将 HP 窗口并发设为 4；DeEcho 仍强制为 1。
 
+2026-09-14 状态补记：以上窗口并发实验只覆盖 HP。DeEcho 的 `inference_batch=1`、`window_parallelism=1` 是当前实现的保守限制，尚未完成并发 1／2／4 的完整音频对照，不能据此认定更高并发没有收益。双向 LSTM 每窗状态须独立重置，但该要求不等于独立窗口不能并发；放开限制前需验证状态隔离、波形、完整任务耗时、内存和取消响应，见[未完成项](../docs/performance.md#尚未完成的调优与验收)。
+
 探针支持 `--parallel-windows 1..8`，探针自身默认仍为 1 以便保持历史基线；完整产物在 `benchmarks/artifacts/2026-09-13-vr-hpc/5hp-long10-{b1,b2,p2,p3,p4,p6}.json`、`6hp-long10-p{1,4}.json` 及对应 `.time`。
 
 ### 调度后验：复用窗口输入缓冲

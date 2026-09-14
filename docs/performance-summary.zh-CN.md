@@ -21,6 +21,8 @@ RTF = 处理耗时 ÷ 音频时长，越小越快。RTF 2 表示处理 10 秒音
 
 [纳入版本控制的数据摘要](../benchmarks/2026-09-13-runtime-summary.json) 保存了每次样本、配置与原始记录摘要。[VR 实验记录](../benchmarks/2026-09-11-vr-cpu-optimization.md) 另有历史同资源测试；发布结果时应区分这两种比较口径。
 
+DeEcho 的批次／窗口并发调优和 BS-RoFormer 1296 的性能调优均未完成。DeEcho 当前强制批次 1、窗口并发 1，尚未完成并发 1／2／4 的完整音频对照；RoFormer 的 Burn／OpenVINO 测量仍是阶段性结果，整曲和多模型处理链尚待验收。上面的 5-HP 速度数字不代表这两个模型。当前限制与待办见[运行时指南](runtime.zh-CN.md#尚未完成的调优)。
+
 ## 软件体积包含什么
 
 9 月 13 日构建于 UTC 10:06:28 在 Intel i5-13420H 上完成，采用 Linux x86_64 release 优化、`-C target-cpu=native`、移除符号，并启用 OpenVINO 特性。`target/native/release/build-info.json` 记录可执行文件字节数、SHA-256 与构建设置；已将摘要与最终文件核对，并连同每个暂存原生库的体积和摘要写入[受版本控制的数据摘要](../benchmarks/2026-09-13-runtime-summary.json)。

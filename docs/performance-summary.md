@@ -21,6 +21,8 @@ These are the project's observed local configurations, including the benefit of 
 
 The [tracked data summary](../benchmarks/2026-09-13-runtime-summary.json) preserves each sample, configuration and source checksum. The earlier [VR experiment log](../benchmarks/2026-09-11-vr-cpu-optimization.md) contains separate matched-resource tests; keep the two comparison types distinct when publishing results.
 
+DeEcho's batch/window-concurrency tuning and BS-RoFormer 1296's performance tuning are unfinished. DeEcho's enforced batch 1 and single window have no completed concurrency 1/2/4 audio comparison; RoFormer's Burn/OpenVINO measurements remain partial, with full-track and multi-model-chain validation outstanding. The 5-HP speed figures above do not describe either model. See the [runtime guide](runtime.md#tuning-still-in-progress) for current limits and remaining work.
+
 ## What is included in the size
 
 The September 13 build completed at 10:06:28 UTC on the Intel i5-13420H. It uses Linux x86_64 release optimization, `-C target-cpu=native`, stripped symbols and the OpenVINO feature. Its `target/native/release/build-info.json` records executable bytes, SHA-256 hashes and build settings. Those hashes were checked against the final files and copied into the [tracked summary](../benchmarks/2026-09-13-runtime-summary.json), along with every staged library's size and hash.

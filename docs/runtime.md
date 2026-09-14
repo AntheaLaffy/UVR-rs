@@ -16,6 +16,12 @@ The CPU thread budget defaults to the smaller of 8 and the available CPU count. 
 
 OpenVINO support is currently limited to 1296 on CPU. Experimental GPU and other backend probes are not available product options. The app checks for a usable OpenVINO CPU runtime before recommending it. If it is unavailable, the recommendation is Burn; explicitly requesting an unavailable backend returns an error.
 
+### Tuning still in progress
+
+DeEcho's batch and window-concurrency tuning is unfinished. The implementation currently enforces `inference_batch=1` and `window_parallelism=1`; the window length remains configurable, with a default of 512 frames and a range of 144–2048 in multiples of 16. Its bidirectional LSTM requires independent state for each window, and future context prevents assuming equivalent state reuse across windows. These constraints do not rule out independent-window concurrency. The fixed values are conservative implementation limits: complete DeEcho audio comparisons at concurrency 1/2/4, including state isolation and output checks, have not been completed. The HP measurements do not prove that higher DeEcho concurrency would be slower.
+
+BS-RoFormer 1296 tuning is also unfinished on both Burn and OpenVINO. Burn's layout and attention-batch changes have timings and waveform checks; OpenVINO CPU has repeated short-audio comparisons and is available in the app and CLI. These are partial results. Repeated full-window measurements, controlled before/after comparisons for recent layout changes, and full-track and multi-model-chain performance validation remain outstanding. Current defaults are starting points, not a completed search for the fastest configuration. See the [remaining work and acceptance criteria](performance.md#尚未完成的调优与验收).
+
 ## Desktop controls
 
 The **Inference runtime** section of the task form contains the backend and CPU thread budget. Expand **Advanced inference settings** for the selected model's options. The controls, configuration summary and task log show which settings apply to the next task.
@@ -109,6 +115,6 @@ Cross-compiling Windows binaries does not inherently reduce inference speed. Rel
 
 ## Evidence and maintenance
 
-The current VR defaults are supported by complete 5-HP and 6-HP audio experiments. Burn 1296's layout and batch defaults have waveform checks and recorded timings. OpenVINO has complete short-audio waveform comparisons, repeated CPU measurements, and a Rust path that builds the graph directly from the original checkpoint. These results do not establish universal speedups over UVR, better model quality, or complete long-track and multi-model-chain validation.
+The current HP defaults are supported by complete 5-HP and 6-HP audio experiments. Burn 1296's layout and batch defaults have waveform checks and recorded timings. OpenVINO has complete short-audio waveform comparisons, repeated CPU measurements, and a Rust path that builds the graph directly from the original checkpoint. These results do not establish universal speedups over UVR, better model quality, or complete long-track and multi-model-chain validation.
 
 The detailed research notes are currently in Chinese: [VR CPU experiments](../benchmarks/2026-09-11-vr-cpu-optimization.md), [Burn 1296 experiments](../benchmarks/2026-09-11-roformer-cpu-optimization.md), [OpenVINO experiments](../benchmarks/2026-09-11-roformer-openvino.md), and the [performance protocol](performance.md). For contributor checks and the shared configuration contract, see [CONTRIBUTING](../CONTRIBUTING.md).
