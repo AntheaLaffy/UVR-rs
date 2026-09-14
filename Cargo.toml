@@ -1,15 +1,28 @@
 [workspace]
-members = ["core", "cli", "gui/src-tauri"]
+members = [
+    "core",
+    "cli",
+    "gui/src-tauri",
+    "crates/uvr-dsp",
+    "crates/uvr-models",
+    "crates/uvr-vr",
+    "crates/uvr-roformer",
+    "crates/uvr-runtime",
+]
 default-members = ["core", "cli"]
 resolver = "3"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-publish = false
+license = "MIT"
+authors = ["IronHPC contributors"]
+repository = "https://github.com/IronHpc/UVR-rs"
+homepage = "https://github.com/IronHpc/UVR-rs"
+publish = ["crates-io"]
 
 [workspace.dependencies]
-uvr-core = { path = "core" }
+uvr-core = { path = "core", version = "0.1.0" }
 
 [workspace.lints.rust]
 unsafe_code = "warn"

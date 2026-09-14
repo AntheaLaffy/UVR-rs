@@ -6686,6 +6686,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "uvr-dsp"
+version = "0.1.0"
+dependencies = [
+ "uvr-core",
+]
+
+[[package]]
 name = "uvr-gui"
 version = "0.1.0"
 dependencies = [
@@ -6694,6 +6701,34 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
+ "uvr-core",
+]
+
+[[package]]
+name = "uvr-models"
+version = "0.1.0"
+dependencies = [
+ "uvr-core",
+]
+
+[[package]]
+name = "uvr-roformer"
+version = "0.1.0"
+dependencies = [
+ "uvr-core",
+]
+
+[[package]]
+name = "uvr-runtime"
+version = "0.1.0"
+dependencies = [
+ "uvr-core",
+]
+
+[[package]]
+name = "uvr-vr"
+version = "0.1.0"
+dependencies = [
  "uvr-core",
 ]
 

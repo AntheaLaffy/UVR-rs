@@ -9,6 +9,7 @@ Help us make local audio separation easier to use and its results easier to veri
 | Location | Responsibility |
 | --- | --- |
 | `core/` | Audio decoding/DSP, original checkpoint loading, inference and file tasks |
+| `crates/` | Focused crates.io facades; keep them thin and preserve `uvr-core` as the implementation source |
 | `cli/` | Command parsing, environment compatibility, terminal progress and exit codes |
 | `gui/src/` | Desktop interaction, validation, preferences and progress display |
 | `gui/src-tauri/` | Native desktop commands, model management and task coordination |

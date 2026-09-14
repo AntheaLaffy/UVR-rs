@@ -76,8 +76,16 @@ make
 
 `make` が利用できない場合は、[ランタイムガイド](docs/runtime.ja.md)の基礎コマンドを直接実行してください。
 
+## Rust crate の再利用
+
+信号処理には [`uvr-dsp`](https://crates.io/crates/uvr-dsp)、モデルの識別・ダウンロードには [`uvr-models`](https://crates.io/crates/uvr-models)、一方の推論系列だけが必要な場合は [`uvr-vr`](https://crates.io/crates/uvr-vr) または [`uvr-roformer`](https://crates.io/crates/uvr-roformer)、ファイル処理全体には [`uvr-runtime`](https://crates.io/crates/uvr-runtime) を選びます。これらの API は共通実装の [`uvr-core`](https://crates.io/crates/uvr-core) を利用します。
+
 ## 開発に参加する
 
 [貢献ガイド](CONTRIBUTING.ja.md)に構成、検証コマンド、問題報告、証拠の扱いをまとめています。[ランタイムガイド](docs/runtime.ja.md)は設定と配布、[ベンチマーク記録](benchmarks/README.md)は測定結果と制約を扱います。
 
 研究文書は現在主に中国語です：[タスクと受け入れ条件](docs/tasks.md)、[基準](docs/baseline.md)、[性能検証手順](docs/performance.md)、[検証済み知見](docs/posterior-knowledge.md)、[上流の参照資料](docs/references.md)。本プロジェクトは参照先のモデルとアルゴリズムに基づいています。
+
+## ライセンス
+
+UVR Rust 独自のコードと文書は [MIT License](LICENSE) で提供します。モデルの重みとその他の第三者素材には、それぞれの条件が適用されます。詳細は[第三者素材](THIRD_PARTY_NOTICES.md)を参照してください。

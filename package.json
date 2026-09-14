@@ -1,6 +1,7 @@
 {
   "name": "uvr-workspace",
   "private": true,
+  "license": "MIT",
   "packageManager": "pnpm@12.1.0",
   "scripts": {
     "gui:dev": "pnpm --filter @uvr/gui tauri dev",

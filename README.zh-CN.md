@@ -76,8 +76,16 @@ make
 
 如果系统没有 `make`，请直接查看[运行时指南](docs/runtime.zh-CN.md)中的底层构建命令。
 
+## 复用 Rust crates
+
+信号处理使用 [`uvr-dsp`](https://crates.io/crates/uvr-dsp)，模型识别／下载使用 [`uvr-models`](https://crates.io/crates/uvr-models)，只需要一种推理网络时选择 [`uvr-vr`](https://crates.io/crates/uvr-vr) 或 [`uvr-roformer`](https://crates.io/crates/uvr-roformer)，完整文件任务使用 [`uvr-runtime`](https://crates.io/crates/uvr-runtime)。这些聚焦 API 共用 [`uvr-core`](https://crates.io/crates/uvr-core) 实现。
+
 ## 参与与深入了解
 
 [贡献指南](CONTRIBUTING.zh-CN.md)说明架构、检查命令、问题报告和证据要求；[运行时指南](docs/runtime.zh-CN.md)解释参数与部署；[基准记录](benchmarks/README.md)保存实测结果和未完成范围。
 
 研究资料目前主要使用中文：[任务与验收](docs/tasks.md)、[工程基线](docs/baseline.md)、[性能协议](docs/performance.md)、[后验知识](docs/posterior-knowledge.md)和[上游参考](docs/references.md)。本项目基于所引用的模型与算法工作。
+
+## 许可证
+
+UVR Rust 的原创代码与文档采用 [MIT 许可证](LICENSE)。模型权重与其他第三方材料仍遵循各自条款，详见[第三方说明](THIRD_PARTY_NOTICES.md)。

@@ -76,8 +76,16 @@ The optimized programs are written to `target/native/release/`; keep its `lib/` 
 
 If `make` is unavailable on your system, use the exact underlying commands in the [runtime guide](docs/runtime.md) instead.
 
+## Reuse the Rust crates
+
+Choose [`uvr-dsp`](https://crates.io/crates/uvr-dsp) for signal processing, [`uvr-models`](https://crates.io/crates/uvr-models) for model identity/downloads, [`uvr-vr`](https://crates.io/crates/uvr-vr) or [`uvr-roformer`](https://crates.io/crates/uvr-roformer) for one inference family, and [`uvr-runtime`](https://crates.io/crates/uvr-runtime) for complete file tasks. [`uvr-core`](https://crates.io/crates/uvr-core) is the shared implementation behind these focused APIs.
+
 ## Contribute and explore
 
 Start with [Contributing](CONTRIBUTING.md) for architecture, checks, bug reports and evidence requirements. The [runtime guide](docs/runtime.md) explains settings and deployment; [benchmark records](benchmarks/README.md) preserve measured results and remaining limitations.
 
 Most research notes are currently in Chinese: [scope and acceptance](docs/tasks.md), [engineering baseline](docs/baseline.md), [performance protocol](docs/performance.md), [validated findings](docs/posterior-knowledge.md), and [upstream references](docs/references.md). UVR Rust builds on the referenced model and algorithm work.
+
+## License
+
+UVR Rust's original code and documentation are available under the [MIT License](LICENSE). Model weights and other third-party material keep their own terms; see [Third-party material](THIRD_PARTY_NOTICES.md).

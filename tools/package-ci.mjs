@@ -59,6 +59,8 @@ try {
     if (!extension) chmodSync(join(stage, name), 0o755);
   }
   copyFileSync(join(root, "references", "model-downloads.json"), join(stage, "model-downloads.json"));
+  copyFileSync(join(root, "LICENSE"), join(stage, "LICENSE"));
+  copyFileSync(join(root, "THIRD_PARTY_NOTICES.md"), join(stage, "THIRD_PARTY_NOTICES.md"));
   writeFileSync(join(stage, "models", "README.txt"), "Put original model weights here, or select/download them in the GUI. Model weights are not included.\n");
   const systemRequirements = extension
     ? "Windows x86_64: Microsoft Edge WebView2 Runtime and Microsoft Visual C++ 2015-2022 x64 Redistributable are required. This Burn-only build has not completed real-device Windows audio acceptance testing."

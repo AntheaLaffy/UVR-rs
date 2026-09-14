@@ -2,7 +2,15 @@
 name = "uvr-core"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
 publish.workspace = true
+description = "Shared DSP, model loading and CPU inference implementation for UVR Rust"
+readme = "README.md"
+keywords = ["audio", "source-separation", "dsp", "inference", "uvr"]
+categories = ["multimedia::audio", "science"]
 
 [features]
 burn-cpu = ["dep:anyhow", "dep:burn-flex", "dep:burn-tensor", "dep:burn-store", "dep:gemm", "dep:rayon"]

@@ -42,6 +42,7 @@ pnpm build
 cargo build --release --locked -p uvr-gui --features custom-protocol
 cp --preserve=mode -- target/release/uvr-gui "$uvr_stage/UVR/uvr-gui"
 cp -- docs/portable-readme.txt "$uvr_stage/UVR/README.txt"
+cp -- LICENSE THIRD_PARTY_NOTICES.md "$uvr_stage/UVR/"
 cp -- references/model-downloads.json "$uvr_stage/UVR/model-downloads.json"
 jq -r '.models[] | [.file, .sha256, .size_bytes] | @tsv' references/verified-weights.json > "$uvr_stage/models.tsv"
 uvr_count=0

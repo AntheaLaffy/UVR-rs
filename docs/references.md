@@ -27,4 +27,4 @@ git submodule status
 - [python-audio-separator 的 BS-RoFormer](https://raw.githubusercontent.com/nomadkaraoke/python-audio-separator/main/audio_separator/separator/uvr_lib_v5/roformer/bs_roformer.py)。
 - [Tauri 项目初始化](https://v2.tauri.app/start/create-project/)。GUI 使用最小 TypeScript／Vite 页面，不绑定额外 UI 框架。
 
-1296 的网络参考固定为 `nomadkaraoke/python-audio-separator` 提交 `bf1164aa0f1ee1d1d0ef0f09b315f7659fc06bab`，源码文件与摘要见 [源码清单](../references/roformer-source.json)。四套权重的实际整文件校验和与已验证范围见 [权重记录](../references/verified-weights.json)。第三方源码及权重的许可分别依其来源；本次未给第三方内容重新授予许可，项目自身发布许可也尚未指定。
+1296 的网络参考固定为 `nomadkaraoke/python-audio-separator` 提交 `bf1164aa0f1ee1d1d0ef0f09b315f7659fc06bab`，源码文件与摘要见 [源码清单](../references/roformer-source.json)。四套权重的实际整文件校验和与已验证范围见 [权重记录](../references/verified-weights.json)。项目原创代码和文档使用 [MIT 许可证](../LICENSE)；第三方源码、权重、品牌素材及运行时仍依各自条款，详见[第三方说明](../THIRD_PARTY_NOTICES.md)。

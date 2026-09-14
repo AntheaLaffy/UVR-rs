@@ -1,0 +1,23 @@
+[package]
+name = "uvr-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+description = "Complete audio file separation and runtime selection for UVR Rust"
+readme = "README.md"
+keywords = ["audio", "source-separation", "runtime", "inference", "uvr"]
+categories = ["multimedia::audio"]
+
+[features]
+openvino = ["uvr-core/openvino"]
+model-download = ["uvr-core/model-download"]
+
+[dependencies]
+uvr-core = { workspace = true, features = ["audio-io", "burn-cpu"] }
+
+[lints]
+workspace = true

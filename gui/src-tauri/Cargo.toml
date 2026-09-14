@@ -2,7 +2,8 @@
 name = "uvr-gui"
 version.workspace = true
 edition.workspace = true
-publish.workspace = true
+license.workspace = true
+publish = false
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

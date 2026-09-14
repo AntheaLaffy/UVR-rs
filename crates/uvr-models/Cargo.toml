@@ -1,0 +1,22 @@
+[package]
+name = "uvr-models"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+description = "Supported-model metadata, fingerprints and optional downloads for UVR Rust"
+readme = "README.md"
+keywords = ["audio", "models", "download", "checksum", "uvr"]
+categories = ["multimedia::audio", "filesystem"]
+
+[features]
+download = ["uvr-core/model-download"]
+
+[dependencies]
+uvr-core = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,19 @@
+[package]
+name = "uvr-dsp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+description = "STFT, spectrogram and resampling primitives used by UVR Rust"
+readme = "README.md"
+keywords = ["audio", "dsp", "stft", "resampling", "uvr"]
+categories = ["multimedia::audio", "algorithms"]
+
+[dependencies]
+uvr-core = { workspace = true }
+
+[lints]
+workspace = true

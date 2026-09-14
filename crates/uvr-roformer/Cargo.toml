@@ -1,0 +1,22 @@
+[package]
+name = "uvr-roformer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish.workspace = true
+description = "CPU inference for the BS-RoFormer 1296 model supported by UVR Rust"
+readme = "README.md"
+keywords = ["audio", "source-separation", "roformer", "inference", "uvr"]
+categories = ["multimedia::audio", "science"]
+
+[features]
+openvino = ["uvr-core/openvino"]
+
+[dependencies]
+uvr-core = { workspace = true, features = ["burn-cpu"] }
+
+[lints]
+workspace = true
