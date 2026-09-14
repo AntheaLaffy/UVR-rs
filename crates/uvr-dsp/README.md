@@ -1,6 +1,6 @@
 # uvr-dsp
 
-[![crates.io](https://img.shields.io/crates/v/uvr-dsp.svg?logo=rust&label=crates.io)](https://crates.io/crates/uvr-dsp)
+[![crates.io](https://img.shields.io/crates/v/uvr-dsp?logo=rust&label=crates.io)](https://crates.io/crates/uvr-dsp)
 [![Documentation](https://docs.rs/uvr-dsp/badge.svg)](https://docs.rs/uvr-dsp)
 
 Reusable STFT, spectrogram, resampling and VR spectral-analysis primitives from [UVR Rust](https://github.com/IronHpc/UVR-rs).

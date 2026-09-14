@@ -1,6 +1,6 @@
 # uvr-vr
 
-[![crates.io](https://img.shields.io/crates/v/uvr-vr.svg?logo=rust&label=crates.io)](https://crates.io/crates/uvr-vr)
+[![crates.io](https://img.shields.io/crates/v/uvr-vr?logo=rust&label=crates.io)](https://crates.io/crates/uvr-vr)
 [![Documentation](https://docs.rs/uvr-vr/badge.svg)](https://docs.rs/uvr-vr)
 
 CPU inference and PCM separation for the 5-HP, 6-HP and DeEcho models supported by [UVR Rust](https://github.com/IronHpc/UVR-rs).

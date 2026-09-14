@@ -1,6 +1,6 @@
 # uvr-models
 
-[![crates.io](https://img.shields.io/crates/v/uvr-models.svg?logo=rust&label=crates.io)](https://crates.io/crates/uvr-models)
+[![crates.io](https://img.shields.io/crates/v/uvr-models?logo=rust&label=crates.io)](https://crates.io/crates/uvr-models)
 [![Documentation](https://docs.rs/uvr-models/badge.svg)](https://docs.rs/uvr-models)
 
 Supported-model metadata and weight fingerprinting from [UVR Rust](https://github.com/IronHpc/UVR-rs). Enable `download` to add verified model download and cache management.
