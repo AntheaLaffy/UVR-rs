@@ -37,7 +37,7 @@ fi
 version=$(sed -n 's/^version = "\([^"]*\)"$/\1/p' Cargo.toml | head -1)
 [[ -n "$version" ]] || { printf '%s\n' 'cannot read workspace version' >&2; exit 1; }
 
-packages=(uvr-core uvr-dsp uvr-models uvr-vr uvr-roformer uvr-runtime)
+mapfile -t packages < <(python3 tools/scan-workspace.py --packages)
 for package in "${packages[@]}"; do
     printf '== %s@%s ==\n' "$package" "$version"
     if curl --fail --silent --show-error \

@@ -1,7 +1,7 @@
 # Local developer entry points. The default target is the measured native build.
 .DEFAULT_GOAL := native
 
-.PHONY: native native-burn web check fmt lint test publish-crates push-both help
+.PHONY: native native-burn web check fmt lint test scan-workspace bump-version publish-crates push-both help
 
 native:
 	 pnpm build:native
@@ -24,6 +24,13 @@ lint:
 test:
 	 cargo test --workspace --all-features --locked
 
+scan-workspace:
+	 python3 tools/scan-workspace.py
+
+bump-version:
+	 @test -n "$(VERSION)" || (printf '%s\n' 'usage: make bump-version VERSION=x.y.z' >&2; exit 2)
+	 tools/bump-version.sh "$(VERSION)"
+
 publish-crates:
 	 tools/publish-crates.sh
 
@@ -39,5 +46,7 @@ help:
 	  'make fmt              Verify Rust formatting' \
 	  'make lint             Run strict Clippy' \
 	  'make test             Run the full workspace test suite' \
+	  'make scan-workspace    Scan crates, docs, tools and configuration files' \
+	  'make bump-version     Update the workspace crate version and lockfile' \
 	  'make publish-crates   Publish library crates to crates.io in dependency order' \
 	  'make push-both        Push the current branch to origin and upstream'
