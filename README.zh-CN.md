@@ -2,7 +2,12 @@
 
 # UVR Rust
 
+[![CI](https://github.com/IronHpc/UVR-rs/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/IronHpc/UVR-rs/actions/workflows/build.yml)
 [![crates.io](https://img.shields.io/crates/v/uvr-core?logo=rust&label=crates.io)](https://crates.io/crates/uvr-core)
+[![Downloads](https://img.shields.io/crates/d/uvr-core?logo=rust&label=downloads)](https://crates.io/crates/uvr-core)
+[![docs.rs](https://docs.rs/uvr-core/badge.svg)](https://docs.rs/uvr-core)
+[![License](https://img.shields.io/crates/l/uvr-core?label=license)](LICENSE)
+[![MSRV](https://img.shields.io/badge/MSRV-1.85%2B-orange?logo=rust)](CONTRIBUTING.md)
 
 [English](README.md) · 简体中文 · [日本語](README.ja.md)
 
