@@ -1,6 +1,6 @@
 UVR — Audio separation
 
-Usage: uvr [--lang <zh-CN|en|ja>] [--help | --version]
+Usage: uvr [--lang <zh-CN|en|ja>] [--help | --version | update-check]
        uvr [--lang <zh-CN|en|ja>] inspect-weights <file>
        uvr [--lang <zh-CN|en|ja>] inspect-audio <audio>
        uvr [--lang <zh-CN|en|ja>] separate-vr <5hp|6hp|deecho> <weights> <audio> <output-dir> [options]

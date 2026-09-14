@@ -1,9 +1,10 @@
 import "./style.css";
 import "./theme";
-import type { Bridge } from "./bridge";
+import type { Bridge, UpdateResult } from "./bridge";
 import { getLanguage, initializeLanguage, onLanguageChange, phaseText, t, type TranslatedPhase } from "./i18n";
 import { ModelLibrary } from "./models";
 import { RuntimeSettings, type RuntimeDefaults } from "./runtime";
+import { APP_VERSION } from "./version";
 
 type Status = "running" | "completed" | "cancelled" | "failed";
 interface TaskEvent extends TranslatedPhase { id: string; status: Status; fraction: number | null; elapsedSeconds: number; outputs: string[] }
@@ -31,6 +32,10 @@ const phase = element("phase");
 const status = element("task-status");
 const outputs = element("outputs");
 const taskLog = element("task-log");
+const appVersion = element("app-version");
+const checkUpdate = element<HTMLButtonElement>("check-update");
+const updateStatus = element("update-status");
+const releaseLink = element<HTMLAnchorElement>("release-link");
 const bridge = window.__TAURI__;
 const runtime = new RuntimeSettings();
 let connected = false;
@@ -47,6 +52,41 @@ let outputPaths: string[] = [];
 let cancelling = false;
 let modelsDirectoryCustomized = false;
 let defaultModelsDirectory = "";
+
+appVersion.textContent = t("version.current", { version: APP_VERSION });
+
+function renderUpdate(result: UpdateResult): void {
+  appVersion.textContent = t("version.current", { version: result.current });
+  releaseLink.hidden = true;
+  if (result.hasUpdate && result.latest) {
+    updateStatus.textContent = t("version.latest", { version: result.latest });
+    updateStatus.className = "update-available";
+    if (result.releaseUrl) {
+      releaseLink.hidden = false;
+      releaseLink.href = result.releaseUrl;
+      releaseLink.textContent = t("version.release");
+    }
+  } else {
+    updateStatus.textContent = t("version.upToDate");
+    updateStatus.className = "update-current";
+    releaseLink.hidden = true;
+  }
+}
+
+checkUpdate.addEventListener("click", async () => {
+  if (!bridge || checkUpdate.disabled) return;
+  checkUpdate.disabled = true;
+  updateStatus.textContent = t("version.checking");
+  try {
+    renderUpdate(await bridge.core.invoke<UpdateResult>("check_update", { lang: getLanguage() }));
+  } catch {
+    updateStatus.textContent = t("version.unavailable");
+    updateStatus.className = "update-unavailable";
+    releaseLink.hidden = true;
+  } finally {
+    checkUpdate.disabled = false;
+  }
+});
 
 const models: Record<string, string> = {
   "1296": "model_bs_roformer_ep_368_sdr_12.9628.ckpt",
@@ -220,7 +260,7 @@ async function connect(): Promise<void> {
   } catch { /* Ignore outdated or unavailable local preferences. */ }
   updateModel();
   updateControls();
-  if (!bridge) { element("preview-note").hidden = false; return; }
+  if (!bridge) { element("preview-note").hidden = false; checkUpdate.disabled = true; return; }
   try {
     await bridge.event.listen<TaskEvent>("task-progress", (event) => receive(event.payload));
     const defaults = await bridge.core.invoke<{ modelsDir: string | null; runtime: RuntimeDefaults }>("defaults", { lang: getLanguage() });
@@ -246,6 +286,8 @@ const library = bridge ? new ModelLibrary(bridge, {
 }) : null;
 
 function refreshLanguage(): void {
+  appVersion.textContent = t("version.current", { version: APP_VERSION });
+  if (!releaseLink.hidden) releaseLink.textContent = t("version.release");
   updateModel();
   showOutputs(outputPaths);
   renderLog();

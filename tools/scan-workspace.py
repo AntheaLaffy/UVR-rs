@@ -96,6 +96,17 @@ def update_version(old: str, new: str, package_list: list[dict]) -> int:
     if count:
         root.write_text(updated)
         changed += 1
+    for relative, pattern in [
+        ("gui/package.json", rf'("version"\s*:\s*"){re.escape(old)}'),
+        ("gui/src-tauri/tauri.conf.json", rf'("version"\s*:\s*"){re.escape(old)}'),
+        ("gui/src/version.ts", rf'(APP_VERSION\s*=\s*"){re.escape(old)}'),
+    ]:
+        path = ROOT / relative
+        text = path.read_text()
+        updated, count = re.subn(pattern, rf'\g<1>{new}', text, count=1)
+        if count:
+            path.write_text(updated)
+            changed += 1
     text = root.read_text()
     updated, count = re.subn(rf'(uvr-core\s*=\s*\{{[^}}]*?version\s*=\s*"){re.escape(old)}', rf'\g<1>{new}', text, count=1)
     if count:
@@ -116,11 +127,26 @@ def update_version(old: str, new: str, package_list: list[dict]) -> int:
     return changed
 
 
+def check_versions() -> None:
+    expected = workspace_version()
+    sources = {
+        "Cargo.toml": re.search(r'^version = "([^"]+)"\s*$', (ROOT / "Cargo.toml").read_text(), re.MULTILINE),
+        "gui/package.json": re.search(r'"version"\s*:\s*"([^"]+)"', (ROOT / "gui/package.json").read_text()),
+        "gui/src-tauri/tauri.conf.json": re.search(r'"version"\s*:\s*"([^"]+)"', (ROOT / "gui/src-tauri/tauri.conf.json").read_text()),
+        "gui/src/version.ts": re.search(r'APP_VERSION\s*=\s*"([^"]+)"', (ROOT / "gui/src/version.ts").read_text()),
+    }
+    mismatches = [f"{path}: {match.group(1) if match else '<missing>'} (expected {expected})" for path, match in sources.items() if not match or match.group(1) != expected]
+    if mismatches:
+        raise SystemExit("version mismatch:\n" + "\n".join(mismatches))
+    print(f"all application versions match workspace version {expected}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version", help="update the workspace and crate README references to VERSION")
     parser.add_argument("--json", action="store_true", help="emit machine-readable inventory")
     parser.add_argument("--packages", action="store_true", help="print publishable crate names, one per line")
+    parser.add_argument("--check-version", action="store_true", help="fail when application version sources drift")
     args = parser.parse_args()
 
     workspace = metadata()
@@ -133,6 +159,9 @@ def main() -> None:
             changed = update_version(old, args.version, package_list)
             old = args.version
             print(f"updated {changed} files: {old}")
+    if args.check_version:
+        check_versions()
+        return
     if args.packages:
         for name in publish_order(workspace, package_list):
             print(name)

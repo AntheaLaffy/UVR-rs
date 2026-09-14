@@ -1,7 +1,7 @@
 # Local developer entry points. The default target is the measured native build.
 .DEFAULT_GOAL := native
 
-.PHONY: native native-burn web check fmt lint test scan-workspace bump-version publish-crates push-both help
+.PHONY: native native-burn web check check-version fmt lint test scan-workspace bump-version publish-crates push-both help
 
 native:
 	 pnpm build:native
@@ -14,6 +14,9 @@ web:
 
 check:
 	 cargo check --workspace --all-targets --locked
+
+check-version:
+	 python3 tools/scan-workspace.py --check-version
 
 fmt:
 	 cargo fmt --all -- --check
@@ -43,6 +46,7 @@ help:
 	  'make native-burn      Build the CPU-optimized Burn-only variant' \
 	  'make web              Build the frontend only' \
 	  'make check            Run workspace checks' \
+	  'make check-version    Verify CLI and GUI versions are synchronized' \
 	  'make fmt              Verify Rust formatting' \
 	  'make lint             Run strict Clippy' \
 	  'make test             Run the full workspace test suite' \

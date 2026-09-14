@@ -1,6 +1,6 @@
 UVR — 音频分离
 
-用法：uvr [--lang <zh-CN|en|ja>] [--help | --version]
+用法：uvr [--lang <zh-CN|en|ja>] [--help | --version | update-check]
       uvr [--lang <zh-CN|en|ja>] inspect-weights <文件>
       uvr [--lang <zh-CN|en|ja>] inspect-audio <音频>
       uvr [--lang <zh-CN|en|ja>] separate-vr <5hp|6hp|deecho> <权重> <音频> <输出目录> [选项]

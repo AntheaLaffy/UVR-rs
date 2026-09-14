@@ -68,6 +68,9 @@ jobs:
           toolchain: stable
           components: rustfmt, clippy
 
+      - name: Check synchronized application versions
+        run: python3 tools/scan-workspace.py --check-version
+
       - name: Install locked web dependencies
         run: pnpm install --frozen-lockfile
 

@@ -13,6 +13,8 @@ pub mod task;
 pub mod vr_dsp;
 pub mod weights;
 
+pub mod version;
+
 #[cfg(feature = "model-download")]
 pub mod model_store;
 

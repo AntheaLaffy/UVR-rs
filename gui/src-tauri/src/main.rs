@@ -4,6 +4,7 @@ mod locale;
 mod models;
 mod runtime;
 mod tasks;
+mod version;
 
 use tauri::Manager;
 
@@ -18,7 +19,8 @@ fn main() {
             tasks::choose_path,
             tasks::defaults,
             models::inspect_models,
-            models::download_model
+            models::download_model,
+            version::check_update
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event

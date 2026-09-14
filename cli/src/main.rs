@@ -72,8 +72,10 @@ fn main() -> ExitCode {
         );
         ExitCode::SUCCESS
     } else if args.len() == 1 && (args[0] == "--version" || args[0] == "-V") {
-        println!("uvr {}", env!("CARGO_PKG_VERSION"));
+        println!("uvr {}", uvr_core::version::VERSION);
         ExitCode::SUCCESS
+    } else if args.len() == 1 && args[0] == "update-check" {
+        update_check(locale)
     } else if args.len() == 2 && args[0] == "inspect-weights" {
         match uvr_core::weights::fingerprint(Path::new(&args[1])) {
             Ok(result) => {
@@ -125,4 +127,70 @@ fn main() -> ExitCode {
             locale,
         )
     }
+}
+
+fn update_check(locale: Locale) -> ExitCode {
+    let runtime = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            eprintln!(
+                "{}",
+                tr!(
+                    locale,
+                    "无法检查更新：{error}",
+                    "Cannot check for updates: {error}",
+                    "更新を確認できません：{error}"
+                )
+            );
+            return ExitCode::SUCCESS;
+        }
+    };
+    match runtime.block_on(uvr_core::version::check_latest()) {
+        Ok(Some(info)) if info.has_update => {
+            println!(
+                "{}",
+                tr!(
+                    locale,
+                    "当前版本：{}\n发现新版本：{}\n下载地址：{}",
+                    "Current version: {}\nUpdate available: {}\nRelease: {}",
+                    "現在のバージョン：{}\n新しいバージョン：{}\nリリース：{}",
+                    info.current,
+                    info.latest,
+                    info.release_url
+                )
+            );
+        }
+        Ok(Some(info)) => println!(
+            "{}",
+            tr!(
+                locale,
+                "当前版本：{}\n已是最新版本。",
+                "Current version: {}\nYou are up to date.",
+                "現在のバージョン：{}\n最新バージョンです。",
+                info.current
+            )
+        ),
+        Ok(None) => println!(
+            "{}",
+            tr!(
+                locale,
+                "暂时没有可用的稳定版本信息。",
+                "No stable release information is available.",
+                "安定版のリリース情報がありません。"
+            )
+        ),
+        Err(error) => eprintln!(
+            "{}",
+            tr!(
+                locale,
+                "无法检查更新：{error}",
+                "Cannot check for updates: {error}",
+                "更新を確認できません：{error}"
+            )
+        ),
+    }
+    ExitCode::SUCCESS
 }

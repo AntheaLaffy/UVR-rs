@@ -21,6 +21,8 @@ make bump-version VERSION=0.1.3
 
 `tools/bump-version.sh` delegates to the scanner. It updates the workspace manifest, internal `uvr-core` dependency references and crate README examples, then runs an offline workspace check so the lockfile and manifests stay consistent. Keep the working tree clean unless the command is deliberately being used during an in-progress change.
 
+The same command also synchronizes the Tauri manifest, the GUI npm package and the frontend version constant. Run `make check-version` (or `python3 tools/scan-workspace.py --check-version`) in CI or before packaging to reject version drift. The CLI exposes the build version with `uvr --version`; `uvr update-check` and the GUI footer provide an explicit, non-automatic GitHub Releases check.
+
 Publish and synchronize only after reviewing the diff:
 
 ```sh

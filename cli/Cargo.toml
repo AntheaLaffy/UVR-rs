@@ -14,9 +14,10 @@ name = "uvr"
 path = "src/main.rs"
 
 [dependencies]
-uvr-core = { workspace = true, features = ["audio-io", "burn-cpu"] }
+uvr-core = { workspace = true, features = ["audio-io", "burn-cpu", "update-check"] }
 anyhow = "1.0"
 ctrlc = "=3.5.0"
+tokio = { version = "1", features = ["rt", "time", "macros"] }
 
 [lints]
 workspace = true

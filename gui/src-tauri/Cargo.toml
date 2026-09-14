@@ -17,7 +17,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "=2.7.2"
 serde = { version = "1", features = ["derive"] }
-uvr-core = { workspace = true, features = ["burn-cpu", "audio-io", "model-download"] }
+uvr-core = { workspace = true, features = ["burn-cpu", "audio-io", "model-download", "update-check"] }
 
 [dev-dependencies]
 serde_json = "1.0.151"

@@ -172,6 +172,12 @@ summary { color: var(--text-secondary); font-size: 11px; cursor: pointer; }
 pre { color: var(--text-muted); font-size: 10px; max-height: 155px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 .task-note { color: var(--text-subtle); font-size: 10px; margin-top: 18px; line-height: 1.8; }
 footer { display: flex; justify-content: space-between; gap: 18px; color: var(--text-subtle); font-size: 10px; padding-top: 20px; }
+.version-info { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.version-info button { font: inherit; color: var(--accent); background: transparent; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+.version-info button:disabled { opacity: .6; cursor: wait; }
+.version-info a { color: var(--accent); }
+.update-available { color: var(--accent-text); }
+.update-unavailable { color: var(--danger-text); }
 .preview-note { padding: 10px 14px; margin-bottom: 16px; border: 1px solid var(--accent-border); background: var(--accent-soft); color: var(--accent-text); border-radius: 8px; font-size: 12px; }
 .library { margin-top: 22px; }
 .library > summary { font-size: 13px; }
