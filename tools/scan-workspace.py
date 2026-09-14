@@ -62,6 +62,32 @@ def crates(data: dict) -> list[dict[str, str | bool]]:
     return sorted(result, key=lambda item: str(item["name"]))
 
 
+def publish_order(data: dict, package_list: list[dict[str, str | bool]]) -> list[str]:
+    """Return publishable packages in deterministic dependency order."""
+    names = {str(package["name"]) for package in package_list if package["publish"]}
+    deps = {name: set() for name in names}
+    for package in data["packages"]:
+        name = package["name"]
+        if name not in names:
+            continue
+        deps[name] = {
+            dependency["name"]
+            for dependency in package.get("dependencies", [])
+            if dependency["name"] in names
+        }
+    ordered: list[str] = []
+    while deps:
+        ready = sorted(name for name, requirements in deps.items() if not requirements)
+        if not ready:
+            raise SystemExit("cyclic publishable crate dependencies detected")
+        ordered.extend(ready)
+        for name in ready:
+            deps.pop(name)
+        for requirements in deps.values():
+            requirements.difference_update(ready)
+    return ordered
+
+
 def update_version(old: str, new: str, package_list: list[dict]) -> int:
     changed = 0
     root = ROOT / "Cargo.toml"
@@ -97,7 +123,8 @@ def main() -> None:
     parser.add_argument("--packages", action="store_true", help="print publishable crate names, one per line")
     args = parser.parse_args()
 
-    package_list = crates(metadata())
+    workspace = metadata()
+    package_list = crates(workspace)
     old = workspace_version()
     if args.version:
         if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?", args.version):
@@ -107,9 +134,8 @@ def main() -> None:
             old = args.version
             print(f"updated {changed} files: {old}")
     if args.packages:
-        for package in package_list:
-            if package["publish"]:
-                print(package["name"])
+        for name in publish_order(workspace, package_list):
+            print(name)
         return
     inventory = {"version": old, "crates": package_list, "files": files()}
     if args.json:

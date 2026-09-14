@@ -4,6 +4,8 @@ English · [简体中文](CONTRIBUTING.zh-CN.md) · [日本語](CONTRIBUTING.ja.
 
 Help us make local audio separation easier to use and its results easier to verify. Start with the [user guide](README.md) and [runtime reference](docs/runtime.md). Inference changes must preserve the documented audio semantics and quality thresholds; a faster kernel is useful when it improves a real task without breaking those guarantees.
 
+Release and workspace-maintenance commands are documented in [Workspace maintenance](docs/maintenance.md).
+
 ## Find the right layer
 
 | Location | Responsibility |
