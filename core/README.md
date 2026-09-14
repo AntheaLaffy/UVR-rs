@@ -1,6 +1,7 @@
 # uvr-core
 
 [![crates.io](https://img.shields.io/crates/v/uvr-core.svg?logo=rust&label=crates.io)](https://crates.io/crates/uvr-core)
+[![Documentation](https://docs.rs/uvr-core/badge.svg)](https://docs.rs/uvr-core)
 
 Shared implementation for [UVR Rust](https://github.com/IronHpc/UVR-rs). It contains audio DSP, model identification and the feature-gated VR and BS-RoFormer CPU inference paths used by the CLI and desktop app.
 

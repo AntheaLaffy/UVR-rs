@@ -1,5 +1,9 @@
 //! Shared audio separation library for the CLI and desktop application.
 //!
+//! Most applications should use one of the focused facade crates (`uvr-dsp`,
+//! `uvr-models`, `uvr-vr`, `uvr-roformer`, or `uvr-runtime`). This crate is the
+//! shared implementation and exposes feature-gated modules for advanced users.
+//!
 //! The optional CPU network API is experimental until audio-pipeline validation.
 
 pub mod dsp;

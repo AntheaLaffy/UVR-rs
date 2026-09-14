@@ -1,4 +1,9 @@
 //! Complete file separation and runtime selection used by the UVR applications.
+//!
+//! This is the highest-level crate: it decodes WAV/FLAC/MP3, validates model
+//! identity, runs inference, and atomically publishes two protected WAV files.
+//! Use [`separate_file`] for recommended defaults or
+//! [`separate_file_with_options`] when reproducible runtime settings are needed.
 
 pub use uvr_core::file_task::{
     FileOutput, FileProgress, FileStage, FileTimings, ModelSpec, RoformerBackend, separate_file,
